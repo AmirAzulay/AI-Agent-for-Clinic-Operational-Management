@@ -1,0 +1,10 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="history-service" type="Application" factoryName="Application">
+    <option name="MAIN_CLASS_NAME" value="com.clinicagent.history.HistoryApplication" />
+    <module name="history-service" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/part-b-implementation" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>
