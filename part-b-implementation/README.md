@@ -51,6 +51,29 @@ cd frontend && npm install && npm run dev
 
 Stop the databases with `docker compose down`. Add `-v` to also delete the data.
 
+## Logging in
+
+Three development users are seeded, one per role from the use-case diagram. The password is
+the username followed by `123`.
+
+| Username | Password | Role |
+|---|---|---|
+| `manager` | `manager123` | CLINIC_MANAGER |
+| `reception` | `reception123` | RECEPTION |
+| `staff` | `staff123` | MEDICAL_STAFF |
+
+```bash
+curl -s -X POST localhost:8080/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"manager","password":"manager123"}'
+# → {"token":"...","expiresAt":"...","username":"manager","role":"CLINIC_MANAGER"}
+
+curl -s localhost:8080/api/clinic/state -H "Authorization: Bearer <token>"
+```
+
+In Swagger UI, call `POST /api/auth/login`, copy the token, click **Authorize** and paste it.
+Every endpoint except login, health and the API docs requires a token.
+
 ## Tests
 
 ```bash
@@ -66,8 +89,8 @@ request, plus the frontend build. No API keys are needed for tests.
 | Phase | Status |
 |---|---|
 | 0 Skeleton | done – both services boot, Flyway V1 applied, index templates installed, CI green |
-| 1 Core domain | next |
-| 2 Simulation engine | |
+| 1 Core domain | done – JPA entities for all tables, seed clinic (V2), read API, JWT login with roles |
+| 2 Simulation engine | next |
 | 3 Tools + validation | |
 | 4 AI agent | |
 | 5 Dashboard | |
