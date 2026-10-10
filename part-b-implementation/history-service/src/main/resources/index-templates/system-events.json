@@ -1,0 +1,23 @@
+{
+  "index_patterns": ["system-events*"],
+  "priority": 100,
+  "_meta": {
+    "description": "Audit and error log for all components (NFR: log errors and important events)."
+  },
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0
+    },
+    "mappings": {
+      "dynamic": "strict",
+      "properties": {
+        "@timestamp": { "type": "date" },
+        "level": { "type": "keyword" },
+        "component": { "type": "keyword" },
+        "message": { "type": "text" },
+        "details": { "type": "flattened" }
+      }
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "index_patterns": ["evaluation-results*"],
+  "priority": 100,
+  "_meta": {
+    "description": "One document per scenario run; source for the four success metrics in project book section 8."
+  },
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0
+    },
+    "mappings": {
+      "dynamic": "strict",
+      "properties": {
+        "@timestamp": { "type": "date" },
+        "scenario": { "type": "keyword" },
+        "run": { "type": "integer" },
+        "expected_issues": { "type": "keyword" },
+        "detected_issues": { "type": "keyword" },
+        "expected_action": { "type": "keyword" },
+        "actual_action": { "type": "keyword" },
+        "correct": { "type": "boolean" },
+        "explained": { "type": "boolean" }
+      }
+    }
+  }
+}

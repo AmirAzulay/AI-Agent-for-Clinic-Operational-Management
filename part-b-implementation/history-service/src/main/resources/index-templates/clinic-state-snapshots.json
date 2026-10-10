@@ -1,0 +1,45 @@
+{
+  "index_patterns": ["clinic-state-snapshots*"],
+  "priority": 100,
+  "_meta": {
+    "description": "One document per simulation tick: the clinic state as clinic-app committed it."
+  },
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0
+    },
+    "mappings": {
+      "dynamic": "strict",
+      "properties": {
+        "@timestamp": { "type": "date" },
+        "run_id": { "type": "keyword" },
+        "tick": { "type": "long" },
+        "departments": {
+          "type": "nested",
+          "properties": {
+            "department_id": { "type": "long" },
+            "name": { "type": "keyword" },
+            "status": { "type": "keyword" },
+            "waiting_count": { "type": "integer" },
+            "avg_wait_min": { "type": "double" },
+            "max_wait_min": { "type": "double" },
+            "rooms_available": { "type": "integer" },
+            "rooms_occupied": { "type": "integer" },
+            "rooms_inactive": { "type": "integer" },
+            "doctors_available": { "type": "integer" }
+          }
+        },
+        "medications": {
+          "type": "nested",
+          "properties": {
+            "medication_id": { "type": "long" },
+            "name": { "type": "keyword" },
+            "stock": { "type": "integer" },
+            "threshold": { "type": "integer" }
+          }
+        }
+      }
+    }
+  }
+}
