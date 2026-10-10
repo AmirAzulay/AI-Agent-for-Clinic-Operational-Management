@@ -2,15 +2,10 @@ package com.clinicagent.clinic;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.List;
 
@@ -18,15 +13,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Phase 0 smoke test: the application starts against a real PostgreSQL, Flyway applies the
- * initial schema, and the health endpoint reports UP.
+ * schema and seed data, and the health endpoint reports UP without a token.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Testcontainers
-class ClinicApplicationSmokeTest {
-
-    @Container
-    @ServiceConnection
-    static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
+class ClinicApplicationSmokeTest extends PostgresIntegrationTest {
 
     @Autowired
     JdbcTemplate jdbc;
@@ -47,7 +36,16 @@ class ClinicApplicationSmokeTest {
     }
 
     @Test
-    void healthEndpointReportsUp() {
+    void seedDataIsPresent() {
+        Integer departments = jdbc.queryForObject("select count(*) from departments", Integer.class);
+        Integer users = jdbc.queryForObject("select count(*) from users", Integer.class);
+
+        assertThat(departments).isEqualTo(4);
+        assertThat(users).isEqualTo(3);
+    }
+
+    @Test
+    void healthEndpointIsPublicAndUp() {
         ResponseEntity<String> response = rest.getForEntity("/actuator/health", String.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);

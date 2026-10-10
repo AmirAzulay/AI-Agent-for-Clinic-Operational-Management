@@ -12,6 +12,9 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+  mvc:
+    problemdetails:
+      enabled: true
 
 server:
   port: 8080
@@ -24,6 +27,12 @@ management:
   endpoint:
     health:
       show-details: always
+
+security:
+  jwt:
+    # Development default only. Set JWT_SECRET (at least 32 characters) anywhere else.
+    secret: ${JWT_SECRET:clinic-agent-dev-secret-change-me-0123456789abcdef}
+    ttl: ${JWT_TTL:8h}
 
 history:
   base-url: ${HISTORY_BASE_URL:http://localhost:8081}
