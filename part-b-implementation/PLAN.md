@@ -35,6 +35,7 @@ diagram shows the same. Before the first Phase B review:
 1. Update the section 6 technology table (backend → Java / Spring Boot; database → PostgreSQL + Elasticsearch).
 2. Update the architecture diagram: replace the FastAPI box with `clinic-app` (Spring Boot), add `history-service` with its Elasticsearch box next to PostgreSQL, and point the Logging System and AI Action History at `history-service`.
 3. Inform the advisor of the change and the reason (team expertise, stronger typing and validation for the tool layer, two-store design that matches the logging and history requirements).
+4. Add one functional requirement for patient walkouts (see §3.4): "The system shall track patients who leave the queue before treatment when their waiting time exceeds a tolerance that depends on urgency, and shall report the walkout rate per department." Add one non-functional requirement for history retention: "Historical data shall be kept for a configurable period and removed automatically afterwards."
 
 ---
 
@@ -84,7 +85,7 @@ clinic state is still correct and the history can be rebuilt from PostgreSQL.
 | `departments` | id, name, status (`NORMAL`, `WARNING`, `OVERLOADED`, `CRITICAL`), max_queue, warning_threshold, overload_threshold | General medicine, pediatrics, orthopedics, emergency |
 | `treatment_rooms` | id, department_id, name, status (`AVAILABLE`, `OCCUPIED`, `INACTIVE`, `MAINTENANCE`) | |
 | `doctors` | id, department_id, name, available (bool), max_concurrent_patients | |
-| `patients` | id, department_id, urgency (`LOW`, `MEDIUM`, `HIGH`), status (`WAITING`, `IN_TREATMENT`, `DONE`), arrived_at, treatment_started_at, treatment_ended_at, room_id, doctor_id | Waiting time is computed, not stored |
+| `patients` | id, department_id, urgency (`LOW`, `MEDIUM`, `HIGH`), status (`WAITING`, `IN_TREATMENT`, `DONE`, `LEFT`), arrived_at, patience_min, treatment_started_at, treatment_ended_at, left_at, room_id, doctor_id | Waiting time is computed, not stored. `LEFT` + `left_at` record a walkout (§3.4); added in the phase 2 migration |
 | `medications` | id, name, stock, threshold | |
 | `restock_requests` | id, medication_id, quantity, status (`OPEN`, `FULFILLED`), created_by (`AI`/`USER`), created_at | |
 | `alerts` | id, type, severity, department_id, message, active (bool), created_by, created_at, resolved_at | |
@@ -96,12 +97,39 @@ clinic state is still correct and the history can be rebuilt from PostgreSQL.
 
 | Index | One document per | Fields |
 |---|---|---|
-| `clinic-state-snapshots` | simulation tick | `@timestamp`, run_id, tick, per-department: waiting_count, avg_wait_min, max_wait_min, status, rooms_available, rooms_occupied, doctors_available; medications: name, stock |
+| `clinic-state-snapshots` | simulation tick | `@timestamp`, run_id, tick, per-department: waiting_count, avg_wait_min, max_wait_min, left_count, left_rate, status, rooms_available, rooms_occupied, doctors_available; medications: name, stock |
 | `ai-decisions` | agent cycle | `@timestamp`, scan_id, context_json (what the model saw), model, tool, parameters, explanation, validation_result, executed, latency_ms, input_tokens, output_tokens |
 | `system-events` | log event | `@timestamp`, level, component, message, details |
 | `evaluation-results` | evaluation scenario run | `@timestamp`, scenario, expected_issues, detected_issues, expected_action, actual_action, correct (bool), explained (bool) |
 
-Index templates live in `docs/elasticsearch/` and are applied at startup.
+Index templates live in `history-service/src/main/resources/index-templates/` and are applied at startup.
+
+### 3.4 Patient walkouts (retention over time)
+
+Real clinics lose patients who give up waiting ("left without being seen"). Modelling this
+makes the simulation honest and gives the agent a measurable outcome, not only a status.
+
+- Every simulated patient gets a **patience** in minutes, drawn per urgency (for example
+  LOW 45–90, MEDIUM 60–120, HIGH never leaves). Stored as `patience_min` on the patient.
+- On each tick, a `WAITING` patient whose waiting time exceeds its patience becomes `LEFT`
+  with `left_at` set, and frees its queue slot.
+- Each snapshot carries `left_count` (walkouts in that tick) and `left_rate` (walkouts ÷
+  arrivals over the run so far) per department. The Context Builder includes the
+  15-minute walkout trend from history-service, so the agent sees that waiting is already
+  costing patients, not only that the queue is long.
+- The dashboard shows walkouts per department next to the queue.
+- Evaluation (§7) adds an outcome metric: the same scenario run with the agent off and on,
+  comparing walkout rates. This is the project's evidence for "improved clinic efficiency".
+
+### 3.5 History retention (data over time)
+
+Elasticsearch indices grow forever unless told otherwise. history-service installs an
+**index lifecycle policy** alongside the templates: snapshot and event indices roll over
+daily and are deleted after a configurable number of days (default 30, property
+`history.retention-days`); `ai-decisions` and `evaluation-results` are kept for 180 days
+because they are the project's evidence. PostgreSQL keeps current state only, so it needs
+no retention policy; finished `simulation_runs` and their patients are the only rows that
+accumulate, and a run can be purged by id.
 
 ---
 
@@ -239,12 +267,12 @@ working part-time.
 |---|---|---|---|
 | 0 | Skeleton (1 week) | Maven multi-module layout, `docker-compose.yml`, `clinic-app` boots against PostgreSQL with Flyway V1, `history-service` boots against Elasticsearch and applies index templates, health endpoints, GitHub Actions running tests | `docker compose up` starts both services; CI is green |
 | 1 | Core domain (1–2 weeks) | All tables, JPA entities, repositories, read endpoints, seed data, JWT login with roles | Login test cases from the book pass; dashboard payload endpoint returns seeded clinic |
-| 2 | Simulation engine (2 weeks) | Scheduled tick, patient arrivals by urgency, department assignment, waiting-time updates, room occupancy and release, doctor load, department status rules, start/stop API; `history-service` ingest + snapshot query; `HistoryClient` sending snapshots after commit | Overload, room shortage and medication shortage scenarios appear on their own; snapshots visible in Kibana and via `/history/snapshots` |
+| 2 | Simulation engine (2 weeks) | Scheduled tick, patient arrivals by urgency, department assignment, waiting-time updates, room occupancy and release, doctor load, department status rules, patient patience and walkouts (§3.4, Flyway V2), start/stop API; `history-service` ingest + snapshot query; `HistoryClient` sending snapshots after commit | Overload, room shortage and medication shortage scenarios appear on their own; walkouts appear when waits exceed patience; snapshots visible in Kibana and via `/history/snapshots` |
 | 3 | Tools + validation, no LLM (1 week) | Six tool services, `ToolValidator`, `ToolExecutor`, alert and restock generation, unit tests for every validation rule | All tool test cases from the book pass without any model involved |
 | 4 | AI agent (2 weeks) | `ContextBuilder` (state + `/history/trends`), system prompt, `AnthropicLlmClient`, agent cycle, scheduler, manual scan, decisions sent to `history-service` | Agent detects a seeded overload and opens a room with an explanation; every action has an explanation |
 | 5 | Dashboard (2 weeks) | Login page, live clinic view, alerts panel, AI recommendations + history, summary view, simulation and agent controls by role | All UI test cases from the book pass |
 | 6 | Evaluation harness (1 week) | Scenario JSON files with expected issues and expected actions, scorer that computes the four section-8 metrics, results indexed to Elasticsearch, Kibana dashboard | Metrics computed for at least 10 scenarios, 3 runs each |
-| 7 | Hardening (1 week) | Testcontainers integration tests for both services, Docker images for `clinic-app`, `history-service` and frontend, README with one-command setup, final diagrams updated | Full system test case from the book passes in CI |
+| 7 | Hardening (1 week) | Testcontainers integration tests for both services, Docker images for `clinic-app`, `history-service` and frontend, index lifecycle policy for history retention (§3.5), README with one-command setup, final diagrams updated | Full system test case from the book passes in CI; old snapshot indices are deleted automatically |
 | 8 | Optional extractions (only if time allows) | `simulation-service`, then `agent-service`, per §4.0.1; architecture diagram updated to four services | Evaluation metrics unchanged after the split |
 
 Why this order: tools are built and tested before the LLM so the agent has deterministic
@@ -266,9 +294,12 @@ come from `GET /history/evaluations/summary` and the Kibana dashboard.
 | Action accuracy | correct ÷ executed actions | ≥ 85 % |
 | Incorrect action rate | incorrect ÷ executed actions | < 10 % |
 | Explanation coverage | actions with explanation ÷ actions | 100 % |
+| Walkout reduction (outcome, §3.4) | walkout rate with agent off − with agent on, same scenario and seed | report the number; target: lower with the agent on |
 
 To handle model non-determinism: fixed seed per scenario, three runs each, report the mean.
-Include at least two "healthy clinic" scenarios to measure false positives.
+Include at least two "healthy clinic" scenarios to measure false positives. The walkout
+comparison runs each overload scenario twice, once with the agent disabled, so the
+difference is attributable to the agent's actions alone.
 
 ---
 
