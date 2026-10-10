@@ -19,9 +19,33 @@ AI Agent for Clinic Operational Management. The engineering plan is in [PLAN.md]
 - JDK 21
 - Docker Desktop
 - Node 20 or newer
-- IntelliJ IDEA (Community is enough). Open the repository root and import `part-b-implementation/pom.xml` as a Maven project when prompted.
+- IntelliJ IDEA (Community is enough). See "Running from IntelliJ" below.
 
 No Maven install is needed; `./mvnw` downloads it.
+
+## Running from IntelliJ
+
+One-time setup after cloning:
+
+1. Open the **repository root** folder in IntelliJ (not `part-b-implementation`).
+2. In the Project tree, right-click `part-b-implementation/pom.xml` and choose **Add as Maven Project**. IntelliJ imports the three modules and downloads dependencies (a minute or two the first time).
+3. If asked for a JDK, pick any Java 21 (File > Project Structure > SDK).
+
+After that, the run configurations committed in `.run/` appear in the toolbar drop-down:
+
+| Run configuration | What it starts | Logs |
+|---|---|---|
+| `history-service` | history-service on 8081 | Run tool window |
+| `clinic-app` | clinic-app on 8080 | Run tool window |
+| `frontend (npm run dev)` | Vite dev server on 5173 | Run tool window |
+
+Start the databases first (`docker compose up -d`), then `history-service`, then `clinic-app`.
+Each one opens its own tab in the Run tool window at the bottom of IntelliJ; that tab is the
+live log. The green bug icon runs the same configuration under the debugger.
+
+No environment variables are needed locally: the defaults in each `application.yml` match
+`docker-compose.yml`. To override something (for example `JWT_SECRET`), edit the run
+configuration and add it under Environment variables.
 
 ## Run locally
 
