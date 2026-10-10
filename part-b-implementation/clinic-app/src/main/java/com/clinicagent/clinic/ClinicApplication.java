@@ -2,12 +2,14 @@ package com.clinicagent.clinic;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 
 /**
  * clinic-app: owns PostgreSQL and everything transactional – the clinic domain, the
  * simulation engine, the AI agent and the six validated tools.
  */
 @SpringBootApplication
+@ConfigurationPropertiesScan
 public class ClinicApplication {
 
     public static void main(String[] args) {
