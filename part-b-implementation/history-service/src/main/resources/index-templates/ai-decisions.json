@@ -1,0 +1,30 @@
+{
+  "index_patterns": ["ai-decisions*"],
+  "priority": 100,
+  "_meta": {
+    "description": "One document per agent cycle: context sent to the model, tool chosen, validation result, explanation."
+  },
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0
+    },
+    "mappings": {
+      "dynamic": "strict",
+      "properties": {
+        "@timestamp": { "type": "date" },
+        "scan_id": { "type": "keyword" },
+        "context_json": { "type": "text", "index": false },
+        "model": { "type": "keyword" },
+        "tool": { "type": "keyword" },
+        "parameters": { "type": "flattened" },
+        "explanation": { "type": "text" },
+        "validation_result": { "type": "keyword" },
+        "executed": { "type": "boolean" },
+        "latency_ms": { "type": "long" },
+        "input_tokens": { "type": "integer" },
+        "output_tokens": { "type": "integer" }
+      }
+    }
+  }
+}

@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: clinic-app
+  datasource:
+    url: ${CLINIC_DB_URL:jdbc:postgresql://localhost:5432/clinic}
+    username: ${CLINIC_DB_USER:clinic}
+    password: ${CLINIC_DB_PASSWORD:clinic}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+history:
+  base-url: ${HISTORY_BASE_URL:http://localhost:8081}
+
+logging:
+  level:
+    com.clinicagent: INFO
