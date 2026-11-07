@@ -1,64 +1,65 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
+import { ROLE_LABELS, type Session } from './api'
+import ClinicView from './ClinicView'
+import Login from './Login'
+import StaffView from './StaffView'
 
-type ServiceStatus = 'checking' | 'up' | 'down'
+const SESSION_KEY = 'clinic.session'
 
-const services = [
-  { name: 'clinic-app', url: '/actuator/health', description: 'PostgreSQL · domain · history · simulation · AI agent' },
-]
-
-function useServiceStatus(url: string): ServiceStatus {
-  const [status, setStatus] = useState<ServiceStatus>('checking')
-
-  useEffect(() => {
-    let cancelled = false
-
-    async function check() {
-      try {
-        const response = await fetch(url)
-        const body = await response.json()
-        if (!cancelled) setStatus(response.ok && body.status === 'UP' ? 'up' : 'down')
-      } catch {
-        if (!cancelled) setStatus('down')
-      }
-    }
-
-    check()
-    const timer = setInterval(check, 5000)
-    return () => {
-      cancelled = true
-      clearInterval(timer)
-    }
-  }, [url])
-
-  return status
+function loadSession(): Session | null {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY)
+    if (!raw) return null
+    const session = JSON.parse(raw) as Session
+    return new Date(session.expiresAt) > new Date() ? session : null
+  } catch {
+    return null
+  }
 }
 
-function ServiceCard({ name, url, description }: (typeof services)[number]) {
-  const status = useServiceStatus(url)
-  const color = status === 'up' ? '#1a7f37' : status === 'down' ? '#cf222e' : '#9a6700'
-  const label = status === 'up' ? 'UP' : status === 'down' ? 'DOWN' : 'CHECKING'
-
-  return (
-    <div style={{ border: '1px solid #d0d7de', borderRadius: 8, padding: 16, minWidth: 260 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <strong>{name}</strong>
-        <span style={{ color, fontWeight: 600 }}>{label}</span>
-      </div>
-      <p style={{ margin: '8px 0 0', color: '#57606a', fontSize: 14 }}>{description}</p>
-    </div>
-  )
+function saveSession(session: Session | null) {
+  try {
+    if (session) sessionStorage.setItem(SESSION_KEY, JSON.stringify(session))
+    else sessionStorage.removeItem(SESSION_KEY)
+  } catch {
+    // storage unavailable (private mode); the session just won't survive a reload
+  }
 }
+
+type Tab = 'clinic' | 'staff'
 
 export default function App() {
+  const [session, setSession] = useState<Session | null>(loadSession)
+  const [tab, setTab] = useState<Tab>('clinic')
+
+  const login = (s: Session) => { saveSession(s); setSession(s); setTab('clinic') }
+  const logout = useCallback(() => { saveSession(null); setSession(null) }, [])
+
+  if (!session) return <Login onLogin={login} />
+
+  const isManager = session.role === 'CLINIC_MANAGER'
   return (
-    <main style={{ fontFamily: 'system-ui, sans-serif', maxWidth: 720, margin: '48px auto', padding: '0 16px' }}>
-      <h1 style={{ marginBottom: 4 }}>Clinic Operations</h1>
-      <p style={{ color: '#57606a', marginTop: 0 }}>Phase 0 status page. The dashboard arrives in phase 5.</p>
-      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 24 }}>
-        {services.map((service) => (
-          <ServiceCard key={service.name} {...service} />
-        ))}
-      </div>
-    </main>
+    <div className="app">
+      <header className="topbar">
+        <div className="brand">Clinic Operations</div>
+        <nav className="tabs">
+          <button className={tab === 'clinic' ? 'tab active' : 'tab'} onClick={() => setTab('clinic')}>Clinic</button>
+          {isManager && (
+            <button className={tab === 'staff' ? 'tab active' : 'tab'} onClick={() => setTab('staff')}>Staff</button>
+          )}
+        </nav>
+        <div className="user">
+          <span>{session.displayName}</span>
+          <span className="muted small">{ROLE_LABELS[session.role]}</span>
+          <button onClick={logout}>Sign out</button>
+        </div>
+      </header>
+      <main className="content">
+        {tab === 'clinic' && <ClinicView token={session.token} onUnauthorized={logout} />}
+        {tab === 'staff' && isManager && (
+          <StaffView token={session.token} currentEmail={session.email} onUnauthorized={logout} />
+        )}
+      </main>
+    </div>
   )
 }
