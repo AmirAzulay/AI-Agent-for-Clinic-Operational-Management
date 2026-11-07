@@ -1,0 +1,8 @@
+# Keep the Docker build context small and free of secrets.
+.env
+*.env.local
+**/target/
+frontend/
+.idea/
+*.iml
+.DS_Store
