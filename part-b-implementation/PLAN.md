@@ -123,8 +123,8 @@ over the last 15 minutes, grouped by department.
 Real clinics lose patients who give up waiting ("left without being seen"). Modelling this
 makes the simulation honest and gives the agent a measurable outcome, not only a status.
 
-- Every simulated patient gets a **patience** in minutes, drawn per urgency (for example
-  LOW 45–90, MEDIUM 60–120, HIGH never leaves). Stored as `patience_min` on the patient.
+- Every simulated patient gets a **patience** in minutes, drawn per urgency: LOW 15–30,
+  MEDIUM 20–45, HIGH 30 min–6 h. Stored as `patience_min` on the patient.
 - On each tick, a `WAITING` patient whose waiting time exceeds its patience becomes `LEFT`
   with `left_at` set, and frees its queue slot. The row stays: the walkout rate is a metric,
   so a walkout is a lifecycle timestamp like `resolved_at` on alerts, never a delete.
