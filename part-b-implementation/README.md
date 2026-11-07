@@ -8,7 +8,7 @@ AI Agent for Clinic Operational Management. The engineering plan is in [PLAN.md]
 |---|---|
 | `pom.xml` | Maven parent (Spring Boot 3.5, Java 21) |
 | `clinic-app/` | The backend. Owns PostgreSQL. Domain, history, simulation engine, AI agent, tools + validation. Port 8080 |
-| `frontend/` | React + Vite + TypeScript dashboard. Port 5173 |
+| `frontend/` | React + Vite + TypeScript dashboard. Dev server on 5173; in the Docker image it is built in and served by `clinic-app` on 8080 |
 | `docker-compose.yml` | PostgreSQL + the backend as one unit. `clinic-app/Dockerfile` builds the backend image |
 | `.env.example` | Environment variables. Copy to `.env` |
 
@@ -53,7 +53,11 @@ cp .env.example .env
 docker compose up -d --build     # postgres + clinic-app
 ```
 
-The first build takes a few minutes (Maven downloads); later builds reuse the cached
+One image holds both the backend and the dashboard: the Dockerfile builds the React app with
+Node, then packages it into `clinic-app`, which serves it at http://localhost:8080 next to the
+API. Same origin, so no CORS. Render deploys the same image.
+
+The first build takes a few minutes (npm and Maven downloads); later builds reuse the cached
 dependencies. The backend waits for PostgreSQL to be healthy, applies Flyway migrations and
 listens on http://localhost:8080. `docker compose logs -f clinic-app` follows its log.
 After a code change, `docker compose up -d --build clinic-app` rebuilds and restarts just the
@@ -79,7 +83,8 @@ cd frontend && npm install && npm run dev
 
 | URL | What you get |
 |---|---|
-| http://localhost:5173 | Status page (phase 0); the dashboard from phase 5 |
+| http://localhost:5173 | Dashboard from the Vite dev server (hot reload while you edit it) |
+| http://localhost:8080 | The same dashboard as built into the Docker image (`docker compose up`), and on Render |
 | http://localhost:8080/actuator/health | clinic-app health, including PostgreSQL |
 | http://localhost:8080/swagger-ui.html | clinic-app API docs |
 | `localhost:5432` | PostgreSQL. Database, user and password `clinic`. Connect with any client (IntelliJ Database tool, `psql`, DBeaver) |
