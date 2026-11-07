@@ -95,7 +95,8 @@ cannot be billed). The app stays under the 500 MB cap by itself; see PLAN.md §3
    the tables; Supabase's automatic REST API would otherwise expose them through the public
    anon key.
 2. **Connect → Session pooler** (port 5432; not the transaction pooler on 6543). Put the values in
-   `.env`; never commit them:
+   a separate `.env.supabase` file next to `.env` (git-ignored, like every `.env.*` except
+   `.env.example`), so your local Docker setup in `.env` stays untouched:
    ```
    SPRING_PROFILES_ACTIVE=supabase
    CLINIC_DB_URL=jdbc:postgresql://<pooler-host>:5432/postgres?sslmode=require
@@ -105,9 +106,14 @@ cannot be billed). The app stays under the 500 MB cap by itself; see PLAN.md §3
    To run the backend in Docker against Supabase, also set
    `CLINIC_DB_URL_DOCKER` to the same URL (inside Docker, `CLINIC_DB_URL`'s `localhost` would
    point at the container itself, so Compose uses this separate variable).
-3. Start the backend as usual (`./mvnw -pl clinic-app spring-boot:run`, or
-   `docker compose up -d --build clinic-app`). Flyway creates the schema and seed data on the
-   first start.
+3. Start the backend with those variables loaded. Flyway creates the schema and seed data on
+   the first start:
+   ```bash
+   set -a; . ./.env.supabase; set +a
+   ./mvnw -pl clinic-app spring-boot:run
+   ```
+   Expect each request to take about 0.5 s instead of 0.05 s locally: every query crosses the
+   network to the Supabase region.
 
 The `supabase` profile keeps snapshots 7 days and AI evidence 30 days, uses a small connection
 pool, and the size guard trims at 300 MB and pauses history writes at 400 MB. Check the current
