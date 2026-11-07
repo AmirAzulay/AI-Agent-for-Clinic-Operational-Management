@@ -57,6 +57,12 @@ history:
     days: ${HISTORY_RETENTION_DAYS:30}
     evidence-days: ${HISTORY_EVIDENCE_RETENTION_DAYS:180}
     batch-size: 5000
+  size-guard:
+    # Safety net for the database size budget (PLAN.md §3.6). Defaults fit Supabase Free (500 MB).
+    enabled: ${HISTORY_SIZE_GUARD_ENABLED:true}
+    soft-limit-mb: ${HISTORY_SIZE_SOFT_LIMIT_MB:300}
+    hard-limit-mb: ${HISTORY_SIZE_HARD_LIMIT_MB:400}
+    check-interval: 10m
 
 logging:
   level:

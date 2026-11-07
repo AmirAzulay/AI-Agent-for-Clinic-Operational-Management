@@ -56,9 +56,17 @@ public class HistoryRetentionJob {
 
     /** Deletes everything older than the configured ages and returns the row count per table. */
     public RetentionResult run() {
+        return run(Duration.ofDays(properties.days()), Duration.ofDays(properties.evidenceDays()), "scheduled");
+    }
+
+    /**
+     * Deletes history older than the given ages. Used by {@link DatabaseSizeGuard} to trim harder
+     * than the configured retention when the database approaches its size limit.
+     */
+    public RetentionResult run(Duration maxAge, Duration evidenceMaxAge, String reason) {
         Instant now = clock.instant();
-        Instant cutoff = now.minus(Duration.ofDays(properties.days()));
-        Instant evidenceCutoff = now.minus(Duration.ofDays(properties.evidenceDays()));
+        Instant cutoff = now.minus(maxAge);
+        Instant evidenceCutoff = now.minus(evidenceMaxAge);
 
         Map<String, Integer> deleted = new LinkedHashMap<>();
         deleted.put("department_snapshots", deleteOlderThan("department_snapshots", "taken_at", cutoff, ""));
@@ -71,8 +79,8 @@ public class HistoryRetentionJob {
         deleted.put("evaluation_results", deleteOlderThan("evaluation_results", "created_at", evidenceCutoff, ""));
 
         RetentionResult result = new RetentionResult(now, cutoff, evidenceCutoff, deleted);
-        record(result);
-        log.info("History retention removed {} row(s): {}", result.total(), deleted);
+        record(result, reason);
+        log.info("History retention ({}) removed {} row(s): {}", reason, result.total(), deleted);
         return result;
     }
 
@@ -91,8 +99,9 @@ public class HistoryRetentionJob {
         return total;
     }
 
-    private void record(RetentionResult result) {
+    private void record(RetentionResult result, String reason) {
         Map<String, Object> details = new LinkedHashMap<>();
+        details.put("reason", reason);
         details.put("cutoff", result.cutoff().toString());
         details.put("evidence_cutoff", result.evidenceCutoff().toString());
         details.put("deleted", result.deleted());

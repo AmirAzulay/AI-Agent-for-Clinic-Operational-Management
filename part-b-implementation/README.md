@@ -86,6 +86,40 @@ cd frontend && npm install && npm run dev
 
 Stop everything with `docker compose down`. Add `-v` to also delete the database data.
 
+## Run against Supabase (shared, $0)
+
+The shared database is a Supabase **free** project (no payment method on the account, so it
+cannot be billed). The app stays under the 500 MB cap by itself; see PLAN.md §3.6.
+
+1. In Supabase: **Project Settings → Data API → disable it.** Only `clinic-app` should reach
+   the tables; Supabase's automatic REST API would otherwise expose them through the public
+   anon key.
+2. **Connect → Session pooler** (port 5432; not the transaction pooler on 6543). Put the values in
+   a separate `.env.supabase` file next to `.env` (git-ignored, like every `.env.*` except
+   `.env.example`), so your local Docker setup in `.env` stays untouched:
+   ```
+   SPRING_PROFILES_ACTIVE=supabase
+   CLINIC_DB_URL=jdbc:postgresql://<pooler-host>:5432/postgres?sslmode=require
+   CLINIC_DB_USER=postgres.<project-ref>
+   CLINIC_DB_PASSWORD=<database password>
+   ```
+   To run the backend in Docker against Supabase, also set
+   `CLINIC_DB_URL_DOCKER` to the same URL (inside Docker, `CLINIC_DB_URL`'s `localhost` would
+   point at the container itself, so Compose uses this separate variable).
+3. Start the backend with those variables loaded. Flyway creates the schema and seed data on
+   the first start:
+   ```bash
+   set -a; . ./.env.supabase; set +a
+   ./mvnw -pl clinic-app spring-boot:run
+   ```
+   Expect each request to take about 0.5 s instead of 0.05 s locally: every query crosses the
+   network to the Supabase region.
+
+The `supabase` profile keeps snapshots 7 days and AI evidence 30 days, uses a small connection
+pool, and the size guard trims at 300 MB and pauses history writes at 400 MB. Check the current
+size at `/actuator/health` (`databaseSizeGuard.sizeMb`). A free project pauses after a week
+without activity; resume it from the Supabase dashboard.
+
 ## Logging in
 
 Three development users are seeded, one per role from the use-case diagram. The password is
@@ -128,6 +162,7 @@ request, plus the frontend build. No API keys are needed for tests.
 | Single backend | done – Elasticsearch and `history-service` removed; history tables in PostgreSQL (V3) |
 | Docker image | done – `clinic-app/Dockerfile`; `docker compose up` runs PostgreSQL + backend together |
 | Walkouts + retention | done – patient patience and walkouts (V4, `WalkoutService`), daily history retention job and `POST /api/history/retention/run` |
+| Storage budget | done – `supabase` profile and `DatabaseSizeGuard` keep the database under Supabase Free's 500 MB |
 | 2 Simulation engine | next |
 | 3 Tools + validation | |
 | 4 AI agent | |
