@@ -1,6 +1,6 @@
 package com.clinicagent.clinic.domain;
 
-import com.clinicagent.common.model.PatientStatus;
+import com.clinicagent.clinic.model.PatientStatus;
 import java.util.Collection;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;

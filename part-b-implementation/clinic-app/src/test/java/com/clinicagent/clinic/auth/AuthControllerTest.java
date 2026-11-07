@@ -4,7 +4,7 @@ import com.clinicagent.clinic.PostgresIntegrationTest;
 import com.clinicagent.clinic.auth.AuthController.LoginRequest;
 import com.clinicagent.clinic.auth.AuthController.LoginResponse;
 import com.clinicagent.clinic.auth.AuthController.MeResponse;
-import com.clinicagent.common.model.UserRole;
+import com.clinicagent.clinic.model.UserRole;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.TestRestTemplate;

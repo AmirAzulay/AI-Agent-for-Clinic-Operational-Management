@@ -19,9 +19,7 @@
   <description>Braude College final project 26-2-D-13 – Part B implementation</description>
 
   <modules>
-    <module>common</module>
     <module>clinic-app</module>
-    <module>history-service</module>
   </modules>
 
   <properties>
@@ -31,11 +29,6 @@
 
   <dependencyManagement>
     <dependencies>
-      <dependency>
-        <groupId>com.clinicagent</groupId>
-        <artifactId>common</artifactId>
-        <version>${project.version}</version>
-      </dependency>
       <dependency>
         <groupId>org.springdoc</groupId>
         <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>

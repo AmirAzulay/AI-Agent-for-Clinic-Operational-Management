@@ -1,4 +1,4 @@
-package com.clinicagent.common.model;
+package com.clinicagent.clinic.model;
 
 /** The three actors from the use-case diagram. */
 public enum UserRole {

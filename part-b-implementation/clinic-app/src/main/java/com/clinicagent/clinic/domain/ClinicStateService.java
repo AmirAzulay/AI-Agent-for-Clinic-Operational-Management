@@ -6,8 +6,8 @@ import com.clinicagent.clinic.api.dto.Dtos.DepartmentState;
 import com.clinicagent.clinic.api.dto.Dtos.DoctorDto;
 import com.clinicagent.clinic.api.dto.Dtos.MedicationDto;
 import com.clinicagent.clinic.api.dto.Dtos.RoomDto;
-import com.clinicagent.common.model.PatientStatus;
-import com.clinicagent.common.model.RoomStatus;
+import com.clinicagent.clinic.model.PatientStatus;
+import com.clinicagent.clinic.model.RoomStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

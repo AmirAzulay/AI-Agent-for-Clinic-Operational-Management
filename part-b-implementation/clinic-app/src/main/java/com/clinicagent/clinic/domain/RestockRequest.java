@@ -1,7 +1,7 @@
 package com.clinicagent.clinic.domain;
 
-import com.clinicagent.common.model.Actor;
-import com.clinicagent.common.model.RestockStatus;
+import com.clinicagent.clinic.model.Actor;
+import com.clinicagent.clinic.model.RestockStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

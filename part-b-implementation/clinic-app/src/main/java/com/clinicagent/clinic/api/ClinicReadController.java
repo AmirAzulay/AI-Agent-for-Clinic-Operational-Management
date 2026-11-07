@@ -15,7 +15,7 @@ import com.clinicagent.clinic.domain.DoctorRepository;
 import com.clinicagent.clinic.domain.MedicationRepository;
 import com.clinicagent.clinic.domain.PatientRepository;
 import com.clinicagent.clinic.domain.TreatmentRoomRepository;
-import com.clinicagent.common.model.PatientStatus;
+import com.clinicagent.clinic.model.PatientStatus;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.data.domain.Sort;

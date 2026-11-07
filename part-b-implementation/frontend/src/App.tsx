@@ -3,8 +3,7 @@ import { useEffect, useState } from 'react'
 type ServiceStatus = 'checking' | 'up' | 'down'
 
 const services = [
-  { name: 'clinic-app', url: '/status/clinic', description: 'PostgreSQL · domain · simulation · AI agent' },
-  { name: 'history-service', url: '/status/history', description: 'Elasticsearch · snapshots · AI decisions' },
+  { name: 'clinic-app', url: '/status/clinic', description: 'PostgreSQL · domain · history · simulation · AI agent' },
 ]
 
 function useServiceStatus(url: string): ServiceStatus {

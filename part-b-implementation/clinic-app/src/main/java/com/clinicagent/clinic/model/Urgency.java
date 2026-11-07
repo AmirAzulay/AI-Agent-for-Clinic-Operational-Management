@@ -1,4 +1,4 @@
-package com.clinicagent.common.model;
+package com.clinicagent.clinic.model;
 
 /** Operational urgency assigned by the simulation. Not a medical triage level. */
 public enum Urgency {

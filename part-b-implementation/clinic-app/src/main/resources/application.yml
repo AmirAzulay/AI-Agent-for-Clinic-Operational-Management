@@ -34,9 +34,6 @@ security:
     secret: ${JWT_SECRET:clinic-agent-dev-secret-change-me-0123456789abcdef}
     ttl: ${JWT_TTL:8h}
 
-history:
-  base-url: ${HISTORY_BASE_URL:http://localhost:8081}
-
 logging:
   level:
     com.clinicagent: INFO

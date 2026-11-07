@@ -1,4 +1,4 @@
-package com.clinicagent.common.model;
+package com.clinicagent.clinic.model;
 
 /** Who created a record: the AI agent, a logged-in user, or the system itself (simulation rules). */
 public enum Actor {

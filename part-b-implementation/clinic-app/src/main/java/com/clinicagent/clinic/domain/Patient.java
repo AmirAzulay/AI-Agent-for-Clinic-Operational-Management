@@ -1,7 +1,7 @@
 package com.clinicagent.clinic.domain;
 
-import com.clinicagent.common.model.PatientStatus;
-import com.clinicagent.common.model.Urgency;
+import com.clinicagent.clinic.model.PatientStatus;
+import com.clinicagent.clinic.model.Urgency;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
