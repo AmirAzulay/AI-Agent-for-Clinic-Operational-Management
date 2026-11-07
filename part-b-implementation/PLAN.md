@@ -21,7 +21,7 @@ repository layout and build order.
 | LLM | Anthropic Claude via the official Java SDK, model `claude-opus-5-5` | Native tool calling with strict JSON schemas; wrapped behind an `LlmClient` interface so OpenAI/Gemini can be added later as the book allows |
 | Auth | Spring Security + JWT, email + password, staff only (§5.3) | Covers the authentication and authorization NFRs; no patient or public access |
 | Migrations | Flyway | Versioned, reviewable schema changes |
-| Local environment | Docker Compose | One command brings up PostgreSQL and the backend; the frontend joins in phase 5 |
+| Local environment | Docker Compose | One command brings up PostgreSQL and one image with the backend and the built dashboard |
 | Tests | JUnit 5 + Testcontainers | Real PostgreSQL in integration tests |
 | CI | GitHub Actions | Build + tests on every push and pull request |
 | IDE | IntelliJ IDEA Community (backend and frontend) | Free; best Spring experience |
@@ -196,7 +196,7 @@ transactional and everything that reads history lives in it.
 | Component | Owns | Responsibilities | Port |
 |---|---|---|---|
 | `clinic-app` | PostgreSQL | Domain (departments, rooms, doctors, patients, medications, alerts, restock), users + JWT login, simulation engine, history (snapshots, trends, AI decisions, events, evaluation results), AI agent (context, prompt, LLM call), the six tools + validation, dashboard REST API | 8080 |
-| `frontend` | – | React dashboard; Vite proxy routes `/api/*` to `clinic-app` | 5173 |
+| `frontend` | – | React dashboard. Built into the `clinic-app` image and served from the same origin as the API; in development the Vite dev server proxies `/api/*` and `/actuator/*` to `clinic-app` | 8080 (image), 5173 (dev) |
 
 ### 4.0 Repository layout
 
@@ -218,8 +218,8 @@ part-b-implementation/
         AgentService (the cycle), AgentScheduler (15-minute trigger)
       api/                    DTOs, error handling, OpenAPI config
   frontend/                   React + Vite + TypeScript
-  docker-compose.yml          postgres, clinic-app (frontend joins in phase 5)
-  clinic-app/Dockerfile       multi-stage build: Maven package, then a JRE image
+  docker-compose.yml          postgres, clinic-app (serves the dashboard too)
+  clinic-app/Dockerfile       multi-stage build: Vite build, Maven package with the dashboard as static files, then a JRE image
   docs/                       ERD, API spec, diagrams
 ```
 
@@ -331,7 +331,7 @@ working part-time.
 | 4 | AI agent (2 weeks) | `ContextBuilder` (state + trends), system prompt, `AnthropicLlmClient`, agent cycle, scheduler, manual scan, decisions stored with context, tokens and latency | Agent detects a seeded overload and opens a room with an explanation; every action has an explanation |
 | 5 | Dashboard (2 weeks) | Login page, live clinic view, history charts, alerts panel, AI recommendations + history, summary view, simulation and agent controls by role | All UI test cases from the book pass |
 | 6 | Evaluation harness (1 week) | Scenario JSON files with expected issues and expected actions, scorer that computes the four section-8 metrics, results stored in `evaluation_results`, evaluation page in the dashboard | Metrics computed for at least 10 scenarios, 3 runs each |
-| 7 | Hardening (1 week) | Testcontainers integration tests, history retention job (§3.5), Docker image for the frontend, README with one-command setup, final diagrams updated | Full system test case from the book passes in CI; old snapshot rows are deleted automatically |
+| 7 | Hardening (1 week) | Testcontainers integration tests, history retention job (§3.5), README with one-command setup, final diagrams updated | Full system test case from the book passes in CI; old snapshot rows are deleted automatically |
 | 8 | Optional extractions (only if time allows) | `simulation-service`, then `agent-service`, per §4.0.1 | Evaluation metrics unchanged after the split |
 
 Why this order: tools are built and tested before the LLM so the agent has deterministic
