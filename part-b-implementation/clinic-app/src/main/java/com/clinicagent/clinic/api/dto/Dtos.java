@@ -6,12 +6,12 @@ import com.clinicagent.clinic.domain.Doctor;
 import com.clinicagent.clinic.domain.Medication;
 import com.clinicagent.clinic.domain.Patient;
 import com.clinicagent.clinic.domain.TreatmentRoom;
-import com.clinicagent.common.model.Actor;
-import com.clinicagent.common.model.AlertSeverity;
-import com.clinicagent.common.model.DepartmentStatus;
-import com.clinicagent.common.model.PatientStatus;
-import com.clinicagent.common.model.RoomStatus;
-import com.clinicagent.common.model.Urgency;
+import com.clinicagent.clinic.model.Actor;
+import com.clinicagent.clinic.model.AlertSeverity;
+import com.clinicagent.clinic.model.DepartmentStatus;
+import com.clinicagent.clinic.model.PatientStatus;
+import com.clinicagent.clinic.model.RoomStatus;
+import com.clinicagent.clinic.model.Urgency;
 
 import java.time.Instant;
 import java.util.List;

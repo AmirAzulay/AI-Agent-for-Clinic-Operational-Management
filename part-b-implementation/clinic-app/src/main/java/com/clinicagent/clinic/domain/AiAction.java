@@ -1,6 +1,6 @@
 package com.clinicagent.clinic.domain;
 
-import com.clinicagent.common.model.AgentTool;
+import com.clinicagent.clinic.model.AgentTool;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

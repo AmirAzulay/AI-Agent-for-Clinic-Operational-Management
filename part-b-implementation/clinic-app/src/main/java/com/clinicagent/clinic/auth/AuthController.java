@@ -2,7 +2,7 @@ package com.clinicagent.clinic.auth;
 
 import com.clinicagent.clinic.domain.UserAccountRepository;
 import com.clinicagent.clinic.domain.UserAccount;
-import com.clinicagent.common.model.UserRole;
+import com.clinicagent.clinic.model.UserRole;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;

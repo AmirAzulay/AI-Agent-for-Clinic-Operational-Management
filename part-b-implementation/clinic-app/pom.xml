@@ -12,14 +12,9 @@
 
   <artifactId>clinic-app</artifactId>
   <name>clinic-app</name>
-  <description>Clinic state, simulation engine, AI agent and tools. Owns PostgreSQL.</description>
+  <description>The single backend: clinic state, history, simulation engine, AI agent and tools. Owns PostgreSQL.</description>
 
   <dependencies>
-    <dependency>
-      <groupId>com.clinicagent</groupId>
-      <artifactId>common</artifactId>
-    </dependency>
-
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-web</artifactId>

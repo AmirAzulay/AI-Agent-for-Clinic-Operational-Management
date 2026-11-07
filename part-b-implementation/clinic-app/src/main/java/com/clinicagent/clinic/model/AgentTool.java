@@ -1,4 +1,4 @@
-package com.clinicagent.common.model;
+package com.clinicagent.clinic.model;
 
 /**
  * The only actions the AI agent can take (project book, section 4.3.6).

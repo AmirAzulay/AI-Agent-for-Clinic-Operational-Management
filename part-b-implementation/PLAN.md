@@ -14,27 +14,42 @@ repository layout and build order.
 | Area | Decision | Reason |
 |---|---|---|
 | Backend language | Java 21 | Team experience, strong typing, long-term support release |
-| Backend framework | Spring Boot 3.x (Maven multi-module) | First-class modules for REST, security, scheduling, JPA and Elasticsearch |
-| Architecture | **Two services** – `clinic-app` (owns PostgreSQL) and `history-service` (owns Elasticsearch); `simulation-service` and `agent-service` are optional later extractions (see §4) | One database per service, transactional logic stays in one place, a real service boundary without the overhead of four deployables on day one |
+| Backend framework | Spring Boot 3.x | First-class modules for REST, security, scheduling and JPA |
+| Architecture | **One backend** – `clinic-app` owns PostgreSQL and serves everything: clinic state, history, simulation, AI agent, tools. `simulation-service` and `agent-service` are optional later extractions (see §4) | One deployable, one database, one transaction per tick and per tool call; no service-to-service calls to fail |
 | Frontend | React + Vite + TypeScript | Matches the project book; fast dev loop |
-| Relational database | **PostgreSQL 16** (see §2 for the MySQL comparison) | Matches the project book, JSONB for tool-call payloads, identical Spring/Flyway/Testcontainers support |
-| Non-relational database | Elasticsearch 8.x + Kibana | Append-only history, time-series aggregations, full-text search over AI explanations, free dashboards for the evaluation chapter |
+| Database | **PostgreSQL 16** (see §2 for the MySQL comparison) – both the current state and the history | Matches the project book, JSONB for tool-call payloads and context, full-text search for AI explanations, window functions for trends |
 | LLM | Anthropic Claude via the official Java SDK, model `claude-opus-5-5` | Native tool calling with strict JSON schemas; wrapped behind an `LlmClient` interface so OpenAI/Gemini can be added later as the book allows |
 | Auth | Spring Security + JWT | Covers the authentication and authorization NFRs |
 | Migrations | Flyway | Versioned, reviewable schema changes |
-| Local environment | Docker Compose | One command brings up DB, Elasticsearch, Kibana, backend, frontend |
-| Tests | JUnit 5 + Testcontainers | Real PostgreSQL and Elasticsearch in integration tests |
+| Local environment | Docker Compose | One command brings up PostgreSQL, later the backend and frontend |
+| Tests | JUnit 5 + Testcontainers | Real PostgreSQL in integration tests |
 | CI | GitHub Actions | Build + tests on every push and pull request |
 | IDE | IntelliJ IDEA Community (backend and frontend) | Free; best Spring experience |
+
+### Why no Elasticsearch
+
+An earlier version of this plan stored history in Elasticsearch behind a second service
+(`history-service`). It was dropped on 2026-11-07:
+
+- **Data volume is small.** A tick every few seconds across four departments is tens of
+  thousands of rows a day. PostgreSQL with a `(department_id, taken_at)` index answers the
+  15-minute trend and chart queries in milliseconds.
+- **No dual write.** A tick and its snapshot commit in the same transaction, so the history
+  can never disagree with the state. The retry, fail-soft and rebuild machinery the second
+  service needed is gone.
+- **Less to run.** No 1–2 GB Elasticsearch heap on laptops, one service to start, one
+  database to back up and test against.
+- **What Elasticsearch gave us is covered:** full-text search over explanations by a
+  PostgreSQL `tsvector` index, aggregations by SQL, dashboards by the React frontend.
 
 ### Changes required in the Phase A book
 
 The Phase A book names **FastAPI (Python)** and **AWS Aurora PostgreSQL**; the architecture
 diagram shows the same. Before the first Phase B review:
 
-1. Update the section 6 technology table (backend → Java / Spring Boot; database → PostgreSQL + Elasticsearch).
-2. Update the architecture diagram: replace the FastAPI box with `clinic-app` (Spring Boot), add `history-service` with its Elasticsearch box next to PostgreSQL, and point the Logging System and AI Action History at `history-service`.
-3. Inform the advisor of the change and the reason (team expertise, stronger typing and validation for the tool layer, two-store design that matches the logging and history requirements).
+1. Update the section 6 technology table (backend → Java / Spring Boot; database → PostgreSQL).
+2. Update the architecture diagram: replace the FastAPI box with `clinic-app` (Spring Boot) and point the Logging System and AI Action History at PostgreSQL history tables.
+3. Inform the advisor of the change and the reason (team expertise, stronger typing and validation for the tool layer).
 
 ---
 
@@ -47,6 +62,7 @@ Testcontainers. The differences that matter here:
 |---|---|---|
 | Matches Phase A book and diagram | Yes | No – one more deviation to justify |
 | Storing the raw tool-call JSON and context JSON | `jsonb` column, indexable and queryable | `JSON` column, less mature indexing |
+| Full-text search over AI explanations | `tsvector` + GIN index, built in | `FULLTEXT` index, fine for InnoDB |
 | Enum-like columns (department status, room status) | Native `CHECK` / enum types | `ENUM` type, fine |
 | Transactions, foreign keys, constraints | Excellent | Excellent (InnoDB) |
 | Timestamp handling | `timestamptz` is unambiguous | `DATETIME` has no timezone; `TIMESTAMP` is limited |
@@ -54,29 +70,24 @@ Testcontainers. The differences that matter here:
 | Hosting later (if needed) | Neon / Supabase / RDS free tiers | PlanetScale / RDS free tiers |
 
 **Recommendation: PostgreSQL.** It keeps the book consistent, and `jsonb` is a real
-advantage for storing each AI decision's parameters next to the relational row. The
-familiarity gap is small because all data access goes through JPA and Flyway SQL that is
+advantage for storing each AI decision's parameters and context next to the relational row.
+The familiarity gap is small because all data access goes through JPA and Flyway SQL that is
 nearly identical on both engines.
-
-**If the team still prefers MySQL:** the plan does not change. Swap the Docker image, the
-JDBC driver dependency, the Flyway dialect and the Testcontainers module. Store JSON payloads
-in a `JSON` column instead of `jsonb`. Everything else in this document stays the same.
 
 ---
 
 ## 3. Data design
 
-### 3.1 Why two databases
+### 3.1 One database, two kinds of tables
 
-- **PostgreSQL is the source of truth for the current state** of the clinic. Every tool executes a transaction here.
-- **Elasticsearch is the append-only history**: what the clinic looked like at every tick, what the agent saw, what it decided, and why.
+- **State tables** hold the current clinic: departments, rooms, doctors, patients, medications, alerts, restock requests. Every tool executes a transaction here.
+- **History tables** are append-only: what the clinic looked like at every tick, what the agent saw, what it decided, and why. Rows are inserted, never updated, and deleted only by the retention job.
 
-Write order rule: `clinic-app` commits to PostgreSQL first, then a
-`@TransactionalEventListener(AFTER_COMMIT)` sends the event to `history-service` over REST
-with a small retry. Only `history-service` talks to Elasticsearch. If it is unavailable,
-clinic state is still correct and the history can be rebuilt from PostgreSQL.
+Write rule: the simulation tick updates the state tables and inserts its snapshot rows in
+**one transaction**. The agent cycle writes `ai_scans` and `ai_actions` in the same
+transaction as the tool it executes.
 
-### 3.2 PostgreSQL tables
+### 3.2 State tables (Flyway V1)
 
 | Table | Key columns | Notes |
 |---|---|---|
@@ -88,87 +99,73 @@ clinic state is still correct and the history can be rebuilt from PostgreSQL.
 | `medications` | id, name, stock, threshold | |
 | `restock_requests` | id, medication_id, quantity, status (`OPEN`, `FULFILLED`), created_by (`AI`/`USER`), created_at | |
 | `alerts` | id, type, severity, department_id, message, active (bool), created_by, created_at, resolved_at | |
-| `ai_actions` | id, scan_id, tool, parameters (`jsonb`), explanation, validation_result, executed (bool), created_at | Mirror of what the dashboard shows as AI history |
-| `ai_scans` | id, started_at, finished_at, trigger (`SCHEDULED`/`MANUAL`), summary | One row per agent cycle; tracks the last-scan time |
 | `simulation_runs` | id, started_at, stopped_at, seed, scenario_name, tick_interval_sec | |
 
-### 3.3 Elasticsearch indices
+### 3.3 History tables (Flyway V3)
 
-| Index | One document per | Fields |
+| Table | One row per | Columns |
 |---|---|---|
-| `clinic-state-snapshots` | simulation tick | `@timestamp`, run_id, tick, per-department: waiting_count, avg_wait_min, max_wait_min, status, rooms_available, rooms_occupied, doctors_available; medications: name, stock |
-| `ai-decisions` | agent cycle | `@timestamp`, scan_id, context_json (what the model saw), model, tool, parameters, explanation, validation_result, executed, latency_ms, input_tokens, output_tokens |
-| `system-events` | log event | `@timestamp`, level, component, message, details |
-| `evaluation-results` | evaluation scenario run | `@timestamp`, scenario, expected_issues, detected_issues, expected_action, actual_action, correct (bool), explained (bool) |
+| `department_snapshots` | department per simulation tick | run_id, tick, taken_at, department_id, status, waiting_count, avg_wait_min, max_wait_min, rooms_available, rooms_occupied, rooms_inactive, doctors_available |
+| `medication_snapshots` | medication per simulation tick | run_id, tick, taken_at, medication_id, stock, threshold |
+| `ai_scans` | agent cycle | started_at, finished_at, trigger_type, summary, model, context_json (`jsonb`, what the model saw), latency_ms, input_tokens, output_tokens |
+| `ai_actions` | tool call | scan_id, tool, parameters (`jsonb`), explanation (full-text indexed), validation_result, executed, created_at |
+| `system_events` | log event | created_at, level, component, message, details (`jsonb`) |
+| `evaluation_results` | evaluation scenario run | created_at, scenario, run, expected_issues, detected_issues, expected_action, actual_action, correct, explained |
 
-Index templates live in `docs/elasticsearch/` and are applied at startup.
+Snapshots are stored one row per department rather than as one JSON document per tick, so the
+trend query is plain SQL: `avg`/`max` of the wait columns and the change in `waiting_count`
+over the last 15 minutes, grouped by department.
 
 ---
 
 ## 4. Service architecture
 
-Two Spring Boot services, each owning exactly one database. Everything that must be
-transactional lives in `clinic-app`; everything that is history, search or aggregation
-lives in `history-service`.
+One Spring Boot service, `clinic-app`, owns PostgreSQL. Everything that must be
+transactional and everything that reads history lives in it.
 
-| Service | Owns | Responsibilities | Port |
+| Component | Owns | Responsibilities | Port |
 |---|---|---|---|
-| `clinic-app` | PostgreSQL | Domain (departments, rooms, doctors, patients, medications, alerts, restock), users + JWT login, simulation engine, AI agent (context, prompt, LLM call), the six tools + validation, dashboard REST API | 8080 |
-| `history-service` | Elasticsearch | Ingest endpoint for snapshots, AI decisions, system events and evaluation results; query endpoints shaped for the dashboard charts, the AI action history page, the agent's 15-minute trends and the evaluation report | 8081 |
-| `frontend` | – | React dashboard; Vite proxy routes `/api/*` to `clinic-app` and `/history/*` to `history-service` | 5173 |
-
-Why not a CRUD service in front of PostgreSQL: `clinic-app` would be its only caller, every
-query would gain a network hop, and tool validation + execution could no longer run in one
-transaction. `history-service` is a real service because it has several consumers
-(dashboard, agent, evaluation harness) and its own data model.
+| `clinic-app` | PostgreSQL | Domain (departments, rooms, doctors, patients, medications, alerts, restock), users + JWT login, simulation engine, history (snapshots, trends, AI decisions, events, evaluation results), AI agent (context, prompt, LLM call), the six tools + validation, dashboard REST API | 8080 |
+| `frontend` | – | React dashboard; Vite proxy routes `/api/*` to `clinic-app` | 5173 |
 
 ### 4.0 Repository layout
 
 ```
 part-b-implementation/
   pom.xml                     parent (dependency management, shared plugins)
-  common/                     DTOs, enums, event payloads shared by the services
   clinic-app/
     src/main/java/.../clinic/
+      model/                  enums: statuses, roles, urgency, tools
       auth/                   JWT login, security config, user roles
       domain/                 entities, repositories, services, REST for the clinic state
       simulation/             SimulationEngine (@Scheduled tick), arrival generator, state rules, start/stop API
+      history/                snapshot writer, trend queries, AI decision / event / evaluation queries, retention job
       agent/
-        context/              ContextBuilder → ClinicContext JSON (state from PostgreSQL + trends from history-service)
+        context/              ContextBuilder → ClinicContext JSON (current state + trends, both from PostgreSQL)
         prompt/               system prompt text + tool schemas
         llm/                  LlmClient interface, AnthropicLlmClient, FakeLlmClient
         tools/                one class per tool + ToolValidator + ToolExecutor
         AgentService (the cycle), AgentScheduler (15-minute trigger)
-      history/                HistoryClient (REST client to history-service) + AFTER_COMMIT event publishers
       api/                    DTOs, error handling, OpenAPI config
-  history-service/
-    src/main/java/.../history/
-      ingest/                 POST endpoints, index writers
-      query/                  snapshots, decisions, trends, evaluation queries
-      index/                  index templates applied at startup
   frontend/                   React + Vite + TypeScript
-  docker-compose.yml          postgres, elasticsearch, kibana, clinic-app, history-service, frontend
-  docs/                       ERD, index mappings, API spec, diagrams
+  docker-compose.yml          postgres (later clinic-app and frontend)
+  docs/                       ERD, API spec, diagrams
 ```
 
-The `simulation/` and `agent/` packages in `clinic-app` depend on the rest of the app only
-through REST-shaped service interfaces, so extracting them later is moving a package, not a
-rewrite.
+The `simulation/` and `agent/` packages depend on the rest of the app only through
+service interfaces, so extracting them later is moving a package, not a rewrite.
 
 ### 4.0.1 Optional extractions (phase 8, only if time allows)
 
 | Order | Service | Why it is a clean cut | What changes |
 |---|---|---|---|
 | 1 | `simulation-service` | Only sends commands ("patient arrived", "treatment finished") to `clinic-app`; holds no transactions | Commands become REST calls; `clinic-app` exposes `/api/internal/simulation/*` |
-| 2 | `agent-service` | Reads state from `clinic-app`, trends from `history-service`, executes one tool endpoint; isolates the LLM dependency and API key | `clinic-app` exposes `/api/internal/tools/execute`; validation stays in `clinic-app` |
-| 3 | `api-gateway` | Spring Cloud Gateway: one origin for React, JWT checked once | Only worth it once there are four services |
+| 2 | `agent-service` | Reads state and trends from `clinic-app`, executes one tool endpoint; isolates the LLM dependency and API key | `clinic-app` exposes `/api/internal/tools/execute`; validation stays in `clinic-app` |
 
 Never extract: the tools + validation layer away from PostgreSQL (breaks the one-transaction
-guarantee), users/login into an auth service (three roles, pure overhead), or individual
+guarantee), history into its own service (it would reintroduce the dual write this plan
+removed), users/login into an auth service (three roles, pure overhead), or individual
 domain entities (they share transactions).
-
-Communication between services is synchronous REST with a shared internal token. No message
-broker; it stays a documented stretch goal.
 
 ### 4.1 Tools (from the project book, section 4.3.6)
 
@@ -187,11 +184,11 @@ toward the "incorrect action" metric.
 ### 4.2 Agent cycle
 
 1. `AgentScheduler` fires every 15 minutes, or `POST /api/agent/scan` fires it manually.
-2. `ContextBuilder` builds a compact `ClinicContext` JSON: current queues, waiting times, department statuses, room availability, doctor load, medication stock, active alerts, last N AI actions (PostgreSQL), and 15-minute trends fetched from `history-service`.
+2. `ContextBuilder` builds a compact `ClinicContext` JSON: current queues, waiting times, department statuses, room availability, doctor load, medication stock, active alerts, last N AI actions, and 15-minute trends from `department_snapshots` / `medication_snapshots`.
 3. `AnthropicLlmClient` sends the system prompt, the context, and the six tools (strict schemas) in one request. The system prompt is marked for prompt caching.
 4. The response contains at most one tool call plus an explanation. `ToolValidator` checks it; `ToolExecutor` runs it inside a transaction.
 5. `GENERATE_SUMMARY` is called in a second request with the outcome, producing the operational summary.
-6. The whole cycle is written to `ai_scans` / `ai_actions` (PostgreSQL) and, after commit, sent to `history-service` for the `ai-decisions` index.
+6. The whole cycle – context, model, tokens, latency, tool call, validation result, summary – is written to `ai_scans` / `ai_actions` in the same transaction as the tool.
 
 Safety boundaries from the book are enforced in code, not only in the prompt: the model
 cannot call anything outside the six tools, and the backend decides whether a call executes.
@@ -200,7 +197,10 @@ cannot call anything outside the six tools, and the backend decides whether a ca
 
 ## 5. REST API (first version)
 
-### 5.1 `clinic-app` (port 8080)
+All endpoints are served by `clinic-app` on port 8080 and documented with springdoc at
+`/swagger-ui.html`. Every endpoint except login, health and the API docs requires the user JWT.
+
+### 5.1 Clinic state, simulation and agent
 
 | Method & path | Purpose |
 |---|---|
@@ -212,21 +212,18 @@ cannot call anything outside the six tools, and the backend decides whether a ca
 | `POST /api/agent/activate`, `/deactivate`, `/scan` | Control the agent; manual scan |
 | `GET /api/agent/actions`, `/scans`, `/summary/latest` | AI recommendations, recent actions and the latest summary |
 
-### 5.2 `history-service` (port 8081)
+### 5.2 History
 
 | Method & path | Purpose |
 |---|---|
-| `POST /history/snapshots` | Ingest one clinic-state snapshot (called by `clinic-app` each tick) |
-| `POST /history/decisions` | Ingest one AI decision |
-| `POST /history/events` | Ingest a system event |
-| `POST /history/evaluations` | Ingest one evaluation result |
-| `GET /history/snapshots?from&to&department` | Time series for dashboard charts |
-| `GET /history/trends?minutes=15` | Per-department aggregations (avg/max wait, queue growth, stock delta) used by the Context Builder |
-| `GET /history/decisions?from&to&tool` | AI action history page, searchable by explanation text |
-| `GET /history/evaluations/summary` | The four section-8 metrics per scenario |
+| `GET /api/history/snapshots?from&to&department` | Time series for dashboard charts |
+| `GET /api/history/trends?minutes=15` | Per-department aggregations (avg/max wait, queue growth, stock delta); the same query the Context Builder uses |
+| `GET /api/history/decisions?from&to&tool&q` | AI action history page; `q` searches explanation text |
+| `GET /api/history/events?from&to&level` | System event log |
+| `GET /api/history/evaluations/summary` | The four section-8 metrics per scenario |
 
-Both services generate OpenAPI documentation with springdoc at `/swagger-ui.html`.
-Ingest endpoints accept an internal service token; query endpoints accept the user JWT.
+There are no ingest endpoints: history rows are written inside the backend by the code that
+produces them.
 
 ---
 
@@ -237,15 +234,15 @@ working part-time.
 
 | # | Phase | Deliverables | Done when |
 |---|---|---|---|
-| 0 | Skeleton (1 week) | Maven multi-module layout, `docker-compose.yml`, `clinic-app` boots against PostgreSQL with Flyway V1, `history-service` boots against Elasticsearch and applies index templates, health endpoints, GitHub Actions running tests | `docker compose up` starts both services; CI is green |
+| 0 | Skeleton (1 week) | Maven layout, `docker-compose.yml`, `clinic-app` boots against PostgreSQL with Flyway V1, health endpoint, GitHub Actions running tests | `docker compose up` starts the database; CI is green |
 | 1 | Core domain (1–2 weeks) | All tables, JPA entities, repositories, read endpoints, seed data, JWT login with roles | Login test cases from the book pass; dashboard payload endpoint returns seeded clinic |
-| 2 | Simulation engine (2 weeks) | Scheduled tick, patient arrivals by urgency, department assignment, waiting-time updates, room occupancy and release, doctor load, department status rules, start/stop API; `history-service` ingest + snapshot query; `HistoryClient` sending snapshots after commit | Overload, room shortage and medication shortage scenarios appear on their own; snapshots visible in Kibana and via `/history/snapshots` |
+| 2 | Simulation engine (2 weeks) | Scheduled tick, patient arrivals by urgency, department assignment, waiting-time updates, room occupancy and release, doctor load, department status rules, start/stop API; snapshot rows written in the tick's transaction; `/api/history/snapshots` and `/api/history/trends` | Overload, room shortage and medication shortage scenarios appear on their own; snapshots visible in the `department_snapshots` table and via `/api/history/snapshots` |
 | 3 | Tools + validation, no LLM (1 week) | Six tool services, `ToolValidator`, `ToolExecutor`, alert and restock generation, unit tests for every validation rule | All tool test cases from the book pass without any model involved |
-| 4 | AI agent (2 weeks) | `ContextBuilder` (state + `/history/trends`), system prompt, `AnthropicLlmClient`, agent cycle, scheduler, manual scan, decisions sent to `history-service` | Agent detects a seeded overload and opens a room with an explanation; every action has an explanation |
-| 5 | Dashboard (2 weeks) | Login page, live clinic view, alerts panel, AI recommendations + history, summary view, simulation and agent controls by role | All UI test cases from the book pass |
-| 6 | Evaluation harness (1 week) | Scenario JSON files with expected issues and expected actions, scorer that computes the four section-8 metrics, results indexed to Elasticsearch, Kibana dashboard | Metrics computed for at least 10 scenarios, 3 runs each |
-| 7 | Hardening (1 week) | Testcontainers integration tests for both services, Docker images for `clinic-app`, `history-service` and frontend, README with one-command setup, final diagrams updated | Full system test case from the book passes in CI |
-| 8 | Optional extractions (only if time allows) | `simulation-service`, then `agent-service`, per §4.0.1; architecture diagram updated to four services | Evaluation metrics unchanged after the split |
+| 4 | AI agent (2 weeks) | `ContextBuilder` (state + trends), system prompt, `AnthropicLlmClient`, agent cycle, scheduler, manual scan, decisions stored with context, tokens and latency | Agent detects a seeded overload and opens a room with an explanation; every action has an explanation |
+| 5 | Dashboard (2 weeks) | Login page, live clinic view, history charts, alerts panel, AI recommendations + history, summary view, simulation and agent controls by role | All UI test cases from the book pass |
+| 6 | Evaluation harness (1 week) | Scenario JSON files with expected issues and expected actions, scorer that computes the four section-8 metrics, results stored in `evaluation_results`, evaluation page in the dashboard | Metrics computed for at least 10 scenarios, 3 runs each |
+| 7 | Hardening (1 week) | Testcontainers integration tests, history retention job, Docker images for `clinic-app` and frontend, README with one-command setup, final diagrams updated | Full system test case from the book passes in CI |
+| 8 | Optional extractions (only if time allows) | `simulation-service`, then `agent-service`, per §4.0.1 | Evaluation metrics unchanged after the split |
 
 Why this order: tools are built and tested before the LLM so the agent has deterministic
 actions to call; the frontend is built after the API is stable so it is not rewritten; the
@@ -257,8 +254,8 @@ demo and the evaluation never depend on phase 8.
 
 Scenarios are JSON files under `clinic-app/src/test/resources/scenarios/`. Each one seeds the
 clinic, declares the expected issues and the expected action, runs one agent cycle, and
-records the outcome to `history-service` (`evaluation-results` index). The report numbers
-come from `GET /history/evaluations/summary` and the Kibana dashboard.
+records the outcome to the `evaluation_results` table. The report numbers come from
+`GET /api/history/evaluations/summary` and the evaluation page in the dashboard.
 
 | Metric | Formula | Target |
 |---|---|---|
@@ -277,21 +274,17 @@ Include at least two "healthy clinic" scenarios to measure false positives.
 ```bash
 # prerequisites: Docker Desktop, JDK 21, Node 20
 cp .env.example .env            # add ANTHROPIC_API_KEY
-docker compose up -d postgres elasticsearch kibana
-./mvnw -pl history-service spring-boot:run     # terminal 1
-./mvnw -pl clinic-app spring-boot:run          # terminal 2
-cd frontend && npm install && npm run dev      # terminal 3
+docker compose up -d            # postgres
+./mvnw -pl clinic-app spring-boot:run          # terminal 1
+cd frontend && npm install && npm run dev      # terminal 2
 ```
 
 - clinic-app: http://localhost:8080 (Swagger at `/swagger-ui.html`)
-- history-service: http://localhost:8081 (Swagger at `/swagger-ui.html`)
 - Frontend: http://localhost:5173
-- Kibana: http://localhost:5601
+- PostgreSQL: `localhost:5432`, database, user and password `clinic` (any client: IntelliJ Database tool, `psql`, DBeaver)
 
-`docker compose up` with no arguments starts everything, including both services and the
-frontend, for demos.
-
-Elasticsearch runs single-node with a 1 GB heap and security disabled for local use.
+From phase 7, `docker compose up` with no arguments also starts the backend and the frontend
+for demos.
 
 ---
 
@@ -302,8 +295,6 @@ Elasticsearch runs single-node with a 1 GB heap and security disabled for local 
 | Stack differs from the Phase A book | Update the book and diagrams in the first week; keep this document in the repo as the reference |
 | LLM cost | One request per 15 minutes with a compact context; prompt caching on the system prompt; a `FakeLlmClient` for tests and the evaluation harness dry-runs |
 | Non-deterministic agent behaviour | Strict tool schemas, backend validation, fixed-seed scenarios, repeated runs |
-| Elasticsearch memory on laptops | 1 GB heap cap in Compose; backend works without Elasticsearch (history features degrade gracefully) |
-| Dual-write inconsistency | PostgreSQL first, send to `history-service` after commit with retry, rebuild endpoint that replays PostgreSQL history into Elasticsearch |
-| `history-service` down while the clinic runs | `HistoryClient` fails soft: the tick and the agent cycle continue, the event is logged and replayed by the rebuild endpoint; the Context Builder falls back to current state without trends |
-| Service-to-service calls add latency and failure modes | Only two synchronous paths (`clinic-app` → `history-service` ingest and trends); timeouts and retries in `HistoryClient`; integration test with `history-service` stopped |
+| History tables grow without bound | Indexed by time; retention job (phase 7) deletes old snapshot and event rows; partition by day only if a measured query gets slow |
+| Snapshot inserts slow the tick | One multi-row insert per table per tick (four departments, a handful of medications); measured in phase 2 |
 | Scope creep (medical logic) | Tools are the only actions; no patient-clinical fields in the data model |

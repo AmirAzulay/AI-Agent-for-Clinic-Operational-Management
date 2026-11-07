@@ -1,4 +1,4 @@
-package com.clinicagent.common.model;
+package com.clinicagent.clinic.model;
 
 /** Where a simulated patient is in the clinic flow. */
 public enum PatientStatus {
