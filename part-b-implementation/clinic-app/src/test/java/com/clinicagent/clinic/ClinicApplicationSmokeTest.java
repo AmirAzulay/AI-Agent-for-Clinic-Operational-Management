@@ -38,10 +38,13 @@ class ClinicApplicationSmokeTest extends PostgresIntegrationTest {
     @Test
     void seedDataIsPresent() {
         Integer departments = jdbc.queryForObject("select count(*) from departments", Integer.class);
-        Integer users = jdbc.queryForObject("select count(*) from users", Integer.class);
+        // Other test classes create accounts in the same database, so check the seeded ones by email.
+        List<String> seededEmails = jdbc.queryForList(
+                "select email from users where email like '%@clinic.local' and id <= 3 order by id", String.class);
 
         assertThat(departments).isEqualTo(4);
-        assertThat(users).isEqualTo(3);
+        assertThat(seededEmails).containsExactly(
+                "manager@clinic.local", "reception@clinic.local", "staff@clinic.local");
     }
 
     @Test

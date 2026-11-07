@@ -122,26 +122,48 @@ without activity; resume it from the Supabase dashboard.
 
 ## Logging in
 
-Three development users are seeded, one per role from the use-case diagram. The password is
-the username followed by `123`.
+The app is for **clinic staff only** (managers, reception, doctors and nurses). There is no
+sign-up and patients never get accounts. Each staff member logs in with an **email and a
+password**. The email is only a login name: it is never verified and the app never sends mail.
 
-| Username | Password | Role |
+Three development accounts are seeded, one per role:
+
+| Email | Password | Role |
 |---|---|---|
-| `manager` | `manager123` | CLINIC_MANAGER |
-| `reception` | `reception123` | RECEPTION |
-| `staff` | `staff123` | MEDICAL_STAFF |
+| `manager@clinic.local` | `manager123` | CLINIC_MANAGER |
+| `reception@clinic.local` | `reception123` | RECEPTION |
+| `staff@clinic.local` | `staff123` | MEDICAL_STAFF |
 
 ```bash
 curl -s -X POST localhost:8080/api/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"username":"manager","password":"manager123"}'
-# → {"token":"...","expiresAt":"...","username":"manager","role":"CLINIC_MANAGER"}
+  -d '{"email":"manager@clinic.local","password":"manager123"}'
+# → {"token":"...","expiresAt":"...","email":"manager@clinic.local","displayName":"Clinic Manager","role":"CLINIC_MANAGER"}
 
 curl -s localhost:8080/api/clinic/state -H "Authorization: Bearer <token>"
 ```
 
 In Swagger UI, call `POST /api/auth/login`, copy the token, click **Authorize** and paste it.
-Every endpoint except login, health and the API docs requires a token.
+Every endpoint except login, health and the API docs requires a token; anonymous health calls
+see only `UP`/`DOWN`.
+
+### Staff accounts
+
+The clinic manager manages accounts (other roles get 403):
+
+| Call | What it does |
+|---|---|
+| `GET /api/users` | List accounts (never includes password hashes) |
+| `POST /api/users` | Create: `{"email","displayName","password","role"}`; password at least 8 characters |
+| `PATCH /api/users/{id}` | Change any of `displayName`, `role`, `active`, `password`; fields left out stay as they are |
+| `POST /api/auth/password` | Any staff member changes their own password: `{"currentPassword","newPassword"}` |
+
+Accounts are deactivated (`"active": false`), never deleted. A deactivated account is locked out
+on its very next request, even with a token that has not expired, and a role change applies to the
+next request too: every request re-reads the account. The manager cannot deactivate their own
+account or remove their own manager role.
+
+Before any shared deployment, give the seeded accounts real passwords or deactivate them.
 
 ## Tests
 
@@ -162,6 +184,7 @@ request, plus the frontend build. No API keys are needed for tests.
 | Single backend | done – Elasticsearch and `history-service` removed; history tables in PostgreSQL (V3) |
 | Docker image | done – `clinic-app/Dockerfile`; `docker compose up` runs PostgreSQL + backend together |
 | Walkouts + retention | done – patient patience and walkouts (V4, `WalkoutService`), daily history retention job and `POST /api/history/retention/run` |
+| Staff accounts | done – email + password login (V5), manager-only account management, deactivation and role changes apply immediately |
 | Storage budget | done – `supabase` profile and `DatabaseSizeGuard` keep the database under Supabase Free's 500 MB |
 | 2 Simulation engine | next |
 | 3 Tools + validation | |
