@@ -32,6 +32,11 @@ public class TreatmentRoom {
     @Column(nullable = false, length = 16)
     private RoomStatus status = RoomStatus.AVAILABLE;
 
+    /** Status a new simulation run starts with. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "initial_status", nullable = false, length = 16)
+    private RoomStatus initialStatus = RoomStatus.AVAILABLE;
+
     protected TreatmentRoom() {
     }
 
@@ -39,6 +44,7 @@ public class TreatmentRoom {
         this.department = department;
         this.name = name;
         this.status = status;
+        this.initialStatus = status;
     }
 
     public Long getId() {
@@ -55,6 +61,10 @@ public class TreatmentRoom {
 
     public RoomStatus getStatus() {
         return status;
+    }
+
+    public RoomStatus getInitialStatus() {
+        return initialStatus;
     }
 
     public void setStatus(RoomStatus status) {

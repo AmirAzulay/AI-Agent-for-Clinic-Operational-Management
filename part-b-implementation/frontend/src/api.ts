@@ -33,6 +33,22 @@ export interface StaffAccount {
   id: number; email: string; displayName: string; role: Role; active: boolean; createdAt: string
 }
 
+export type Scenario = 'NORMAL' | 'RUSH' | 'STAFF_SHORTAGE' | 'MEDICATION_SHORTAGE'
+
+export interface SimulationStatus {
+  runId: number | null; running: boolean; autoTick: boolean; scenario: Scenario | null; seed: number | null
+  tick: number; maxTicks: number | null; minutesPerTick: number | null; tickIntervalSeconds: number | null
+  simDay: number; simClock: string | null; simNow: string | null
+  startedAt: string | null; stoppedAt: string | null; stopReason: 'STOPPED' | 'COMPLETED' | 'INTERRUPTED' | 'ERROR' | null
+}
+
+export const SCENARIO_LABELS: Record<Scenario, string> = {
+  NORMAL: 'Normal day',
+  RUSH: 'Rush (1.8× arrivals)',
+  STAFF_SHORTAGE: 'Staff shortage (one doctor off per department)',
+  MEDICATION_SHORTAGE: 'Medication shortage (stock starts near threshold)',
+}
+
 export const ROLE_LABELS: Record<Role, string> = {
   CLINIC_MANAGER: 'Clinic manager',
   RECEPTION: 'Reception',
@@ -75,6 +91,10 @@ export const api = {
   updateStaff: (token: string, id: number,
                 body: Partial<{ displayName: string; role: Role; active: boolean; password: string }>) =>
     request<StaffAccount>(`/api/users/${id}`, { method: 'PATCH', body: JSON.stringify(body) }, token),
+  simulationStatus: (token: string) => request<SimulationStatus>('/api/simulation/status', {}, token),
+  startSimulation: (token: string, body: { scenario: Scenario; seed?: number; tickIntervalSeconds?: number }) =>
+    request<SimulationStatus>('/api/simulation/start', { method: 'POST', body: JSON.stringify(body) }, token),
+  stopSimulation: (token: string) => request<SimulationStatus>('/api/simulation/stop', { method: 'POST' }, token),
   changeOwnPassword: (token: string, currentPassword: string, newPassword: string) =>
     request<void>('/api/auth/password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }, token),
 }

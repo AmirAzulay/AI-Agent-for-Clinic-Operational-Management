@@ -13,6 +13,8 @@ public interface PatientRepository extends JpaRepository<Patient, Long>, JpaSpec
 
     List<Patient> findByStatusInOrderByArrivedAtAsc(Collection<PatientStatus> statuses);
 
+    List<Patient> findByStatusOrderByIdAsc(PatientStatus status);
+
     /** Waiting patients whose wait has exceeded their patience at {@code now}. Patients without a patience never qualify. */
     @Query(value = """
             select * from patients

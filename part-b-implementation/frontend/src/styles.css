@@ -168,6 +168,16 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color:
 .room-occupied { color: var(--overloaded); background: var(--overloaded-bg); border-color: transparent; }
 .room-inactive, .room-maintenance { color: var(--idle); background: var(--idle-bg); border-style: dashed; }
 
+/* --- simulation --- */
+.simulation { display: flex; flex-direction: column; gap: 10px; }
+.simulation-status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.simulation-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; align-items: end; }
+.simulation p { margin: 0; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--idle); flex: none; }
+.dot-live { background: var(--normal); box-shadow: 0 0 0 4px var(--normal-bg); }
+.bar.thin { height: 4px; }
+button.danger { background: var(--critical); border-color: var(--critical); color: #fff; }
+
 /* --- panels --- */
 .columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; align-items: start; }
 

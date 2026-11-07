@@ -36,6 +36,13 @@ security:
     ttl: ${JWT_TTL:8h}
 
 simulation:
+  # Defaults for new runs; POST /api/simulation/start can override them per run.
+  tick-interval: ${SIMULATION_TICK_INTERVAL:5s}
+  minutes-per-tick: 1
+  # One simulated day, then the run stops by itself.
+  max-ticks: 1440
+  # Simulated minutes between history snapshots (PLAN.md §3.6).
+  snapshot-every-minutes: 5
   walkouts:
     # Minutes a waiting patient tolerates before leaving, per urgency (PLAN.md §3.4).
     # An urgency that is not listed never leaves.
