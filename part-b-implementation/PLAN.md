@@ -50,6 +50,8 @@ diagram shows the same. Before the first Phase B review:
 1. Update the section 6 technology table (backend → Java / Spring Boot; database → PostgreSQL).
 2. Update the architecture diagram: replace the FastAPI box with `clinic-app` (Spring Boot) and point the Logging System and AI Action History at PostgreSQL history tables.
 3. Inform the advisor of the change and the reason (team expertise, stronger typing and validation for the tool layer).
+4. Add one functional requirement for patient walkouts (see §3.4): "The system shall track patients who leave the queue before treatment when their waiting time exceeds a tolerance that depends on urgency, and shall report the walkout rate per department." Add one non-functional requirement for history retention (see §3.5): "Historical data shall be kept for a configurable period and removed automatically afterwards."
+
 
 ---
 
@@ -95,7 +97,7 @@ transaction as the tool it executes.
 | `departments` | id, name, status (`NORMAL`, `WARNING`, `OVERLOADED`, `CRITICAL`), max_queue, warning_threshold, overload_threshold | General medicine, pediatrics, orthopedics, emergency |
 | `treatment_rooms` | id, department_id, name, status (`AVAILABLE`, `OCCUPIED`, `INACTIVE`, `MAINTENANCE`) | |
 | `doctors` | id, department_id, name, available (bool), max_concurrent_patients | |
-| `patients` | id, department_id, urgency (`LOW`, `MEDIUM`, `HIGH`), status (`WAITING`, `IN_TREATMENT`, `DONE`), arrived_at, treatment_started_at, treatment_ended_at, room_id, doctor_id | Waiting time is computed, not stored |
+| `patients` | id, department_id, urgency (`LOW`, `MEDIUM`, `HIGH`), status (`WAITING`, `IN_TREATMENT`, `DONE`, `LEFT`), arrived_at, patience_min, treatment_started_at, treatment_ended_at, left_at, room_id, doctor_id | Waiting time is computed, not stored. `LEFT` + `left_at` record a walkout (§3.4); added in the phase 2 migration (V4) |
 | `medications` | id, name, stock, threshold | |
 | `restock_requests` | id, medication_id, quantity, status (`OPEN`, `FULFILLED`), created_by (`AI`/`USER`), created_at | |
 | `alerts` | id, type, severity, department_id, message, active (bool), created_by, created_at, resolved_at | |
@@ -105,7 +107,7 @@ transaction as the tool it executes.
 
 | Table | One row per | Columns |
 |---|---|---|
-| `department_snapshots` | department per simulation tick | run_id, tick, taken_at, department_id, status, waiting_count, avg_wait_min, max_wait_min, rooms_available, rooms_occupied, rooms_inactive, doctors_available |
+| `department_snapshots` | department per simulation tick | run_id, tick, taken_at, department_id, status, waiting_count, avg_wait_min, max_wait_min, left_count, left_rate (§3.4, V4), rooms_available, rooms_occupied, rooms_inactive, doctors_available |
 | `medication_snapshots` | medication per simulation tick | run_id, tick, taken_at, medication_id, stock, threshold |
 | `ai_scans` | agent cycle | started_at, finished_at, trigger_type, summary, model, context_json (`jsonb`, what the model saw), latency_ms, input_tokens, output_tokens |
 | `ai_actions` | tool call | scan_id, tool, parameters (`jsonb`), explanation (full-text indexed), validation_result, executed, created_at |
@@ -115,6 +117,44 @@ transaction as the tool it executes.
 Snapshots are stored one row per department rather than as one JSON document per tick, so the
 trend query is plain SQL: `avg`/`max` of the wait columns and the change in `waiting_count`
 over the last 15 minutes, grouped by department.
+
+### 3.4 Patient walkouts (retention over time)
+
+Real clinics lose patients who give up waiting ("left without being seen"). Modelling this
+makes the simulation honest and gives the agent a measurable outcome, not only a status.
+
+- Every simulated patient gets a **patience** in minutes, drawn per urgency (for example
+  LOW 45–90, MEDIUM 60–120, HIGH never leaves). Stored as `patience_min` on the patient.
+- On each tick, a `WAITING` patient whose waiting time exceeds its patience becomes `LEFT`
+  with `left_at` set, and frees its queue slot. The row stays: the walkout rate is a metric,
+  so a walkout is a lifecycle timestamp like `resolved_at` on alerts, never a delete.
+- Each `department_snapshots` row carries `left_count` (walkouts in that tick) and
+  `left_rate` (walkouts ÷ arrivals over the run so far). The Context Builder includes the
+  15-minute walkout trend, so the agent sees that waiting is already costing patients, not
+  only that the queue is long.
+- The dashboard shows walkouts per department next to the queue.
+- Evaluation (§7) adds an outcome metric: the same scenario run with the agent off and on,
+  comparing walkout rates. This is the project's evidence for "improved clinic efficiency".
+
+### 3.5 History retention (data over time)
+
+The history tables are append-only and grow with every tick, so they need a retention
+rule. Retention is a hard delete by age, not a `deleted_at` flag: the point is to keep the
+tables small, nobody restores a month-old snapshot, and a soft delete would force a
+`deleted_at is null` filter into every trend and chart query.
+
+- A `@Scheduled` job (`HistoryRetentionJob`, phase 7) runs once a day and deletes rows older
+  than the configured age: `department_snapshots`, `medication_snapshots` and
+  `system_events` after `history.retention-days` (default 30); `ai_actions`, `ai_scans` and
+  `evaluation_results` after `history.evidence-retention-days` (default 180), because they
+  are the project's evidence.
+- Deletes run in batches of a few thousand rows so the job never holds a long lock while
+  the simulation is ticking, and in foreign-key order: `ai_actions` before `ai_scans`,
+  snapshots before any old `simulation_runs`.
+- Every table involved already has the time column the job filters on (`taken_at` or
+  `created_at`), and it is indexed.
+- State tables keep current state only and need no retention; finished `simulation_runs`
+  and their patients can be purged by run id.
 
 ---
 
@@ -237,12 +277,12 @@ working part-time.
 |---|---|---|---|
 | 0 | Skeleton (1 week) | Maven layout, `docker-compose.yml`, `clinic-app` boots against PostgreSQL with Flyway V1, health endpoint, GitHub Actions running tests | `docker compose up` starts the database; CI is green |
 | 1 | Core domain (1–2 weeks) | All tables, JPA entities, repositories, read endpoints, seed data, JWT login with roles | Login test cases from the book pass; dashboard payload endpoint returns seeded clinic |
-| 2 | Simulation engine (2 weeks) | Scheduled tick, patient arrivals by urgency, department assignment, waiting-time updates, room occupancy and release, doctor load, department status rules, start/stop API; snapshot rows written in the tick's transaction; `/api/history/snapshots` and `/api/history/trends` | Overload, room shortage and medication shortage scenarios appear on their own; snapshots visible in the `department_snapshots` table and via `/api/history/snapshots` |
+| 2 | Simulation engine (2 weeks) | Scheduled tick, patient arrivals by urgency, department assignment, waiting-time updates, room occupancy and release, doctor load, department status rules, patient patience and walkouts (§3.4, Flyway V4), start/stop API; snapshot rows written in the tick's transaction; `/api/history/snapshots` and `/api/history/trends` | Overload, room shortage and medication shortage scenarios appear on their own; walkouts appear when waits exceed patience; snapshots visible in the `department_snapshots` table and via `/api/history/snapshots` |
 | 3 | Tools + validation, no LLM (1 week) | Six tool services, `ToolValidator`, `ToolExecutor`, alert and restock generation, unit tests for every validation rule | All tool test cases from the book pass without any model involved |
 | 4 | AI agent (2 weeks) | `ContextBuilder` (state + trends), system prompt, `AnthropicLlmClient`, agent cycle, scheduler, manual scan, decisions stored with context, tokens and latency | Agent detects a seeded overload and opens a room with an explanation; every action has an explanation |
 | 5 | Dashboard (2 weeks) | Login page, live clinic view, history charts, alerts panel, AI recommendations + history, summary view, simulation and agent controls by role | All UI test cases from the book pass |
 | 6 | Evaluation harness (1 week) | Scenario JSON files with expected issues and expected actions, scorer that computes the four section-8 metrics, results stored in `evaluation_results`, evaluation page in the dashboard | Metrics computed for at least 10 scenarios, 3 runs each |
-| 7 | Hardening (1 week) | Testcontainers integration tests, history retention job, Docker image for the frontend, README with one-command setup, final diagrams updated | Full system test case from the book passes in CI |
+| 7 | Hardening (1 week) | Testcontainers integration tests, history retention job (§3.5), Docker image for the frontend, README with one-command setup, final diagrams updated | Full system test case from the book passes in CI; old snapshot rows are deleted automatically |
 | 8 | Optional extractions (only if time allows) | `simulation-service`, then `agent-service`, per §4.0.1 | Evaluation metrics unchanged after the split |
 
 Why this order: tools are built and tested before the LLM so the agent has deterministic
@@ -264,9 +304,12 @@ records the outcome to the `evaluation_results` table. The report numbers come f
 | Action accuracy | correct ÷ executed actions | ≥ 85 % |
 | Incorrect action rate | incorrect ÷ executed actions | < 10 % |
 | Explanation coverage | actions with explanation ÷ actions | 100 % |
+| Walkout reduction (outcome, §3.4) | walkout rate with agent off − with agent on, same scenario and seed | report the number; target: lower with the agent on |
 
 To handle model non-determinism: fixed seed per scenario, three runs each, report the mean.
-Include at least two "healthy clinic" scenarios to measure false positives.
+Include at least two "healthy clinic" scenarios to measure false positives. The walkout
+comparison runs each overload scenario twice, once with the agent disabled, so the
+difference is attributable to the agent's actions alone.
 
 ---
 
