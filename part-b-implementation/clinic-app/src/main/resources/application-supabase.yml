@@ -1,0 +1,21 @@
+# Profile for the Supabase free plan: SPRING_PROFILES_ACTIVE=supabase
+# Goal: $0 and well under the 500 MB database cap (PLAN.md §3.6).
+#
+# Connection: use the Session pooler string from Supabase (Connect -> Session pooler, port 5432).
+# The transaction pooler (port 6543) breaks prepared statements used by JPA and Flyway.
+# Set CLINIC_DB_URL, CLINIC_DB_USER and CLINIC_DB_PASSWORD in .env, never in this file.
+
+spring:
+  datasource:
+    hikari:
+      # The free plan's pooler allows few connections; stay well below it.
+      maximum-pool-size: 4
+      minimum-idle: 1
+
+history:
+  retention:
+    days: ${HISTORY_RETENTION_DAYS:7}
+    evidence-days: ${HISTORY_EVIDENCE_RETENTION_DAYS:30}
+  size-guard:
+    soft-limit-mb: ${HISTORY_SIZE_SOFT_LIMIT_MB:300}
+    hard-limit-mb: ${HISTORY_SIZE_HARD_LIMIT_MB:400}

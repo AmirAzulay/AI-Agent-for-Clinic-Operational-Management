@@ -123,8 +123,8 @@ over the last 15 minutes, grouped by department.
 Real clinics lose patients who give up waiting ("left without being seen"). Modelling this
 makes the simulation honest and gives the agent a measurable outcome, not only a status.
 
-- Every simulated patient gets a **patience** in minutes, drawn per urgency (for example
-  LOW 45–90, MEDIUM 60–120, HIGH never leaves). Stored as `patience_min` on the patient.
+- Every simulated patient gets a **patience** in minutes, drawn per urgency: LOW 15–30,
+  MEDIUM 20–45, HIGH 30 min–6 h. Stored as `patience_min` on the patient.
 - On each tick, a `WAITING` patient whose waiting time exceeds its patience becomes `LEFT`
   with `left_at` set, and frees its queue slot. The row stays: the walkout rate is a metric,
   so a walkout is a lifecycle timestamp like `resolved_at` on alerts, never a delete.
@@ -155,6 +155,36 @@ tables small, nobody restores a month-old snapshot, and a soft delete would forc
   `created_at`), and it is indexed.
 - State tables keep current state only and need no retention; finished `simulation_runs`
   and their patients can be purged by run id.
+
+### 3.6 Storage budget ($0 hosting)
+
+The shared database runs on the **Supabase free plan**: $0, no payment method on the
+account (so nothing can be charged), and a hard cap of **500 MB**. The design keeps the
+database far below that with three layers.
+
+Measured on PostgreSQL 16, indexes included: a `department_snapshots` row takes ~284 bytes and
+a `medication_snapshots` row ~211 bytes, so one snapshot of 4 departments and 8 medications is
+~2.8 KB.
+
+| Snapshot every | Per day | 7 days | 30 days |
+|---|---|---|---|
+| 5 s | 49 MB | 340 MB | 1.5 GB |
+| **60 s** | **4 MB** | **28 MB** | 122 MB |
+
+1. **Write less.** The simulation may tick every few seconds, but it writes a snapshot at most
+   once per `history.snapshot-interval` (default 60 s, phase 2). The 15-minute trends still get
+   15 points per department.
+2. **Keep less.** The `supabase` profile keeps snapshots and events for 7 days and AI evidence
+   for 30 days (§3.5). Expected steady state: ~30 MB of snapshots plus a few MB of state, AI
+   decisions and evaluation results.
+3. **Hard safety net.** `DatabaseSizeGuard` reads `pg_database_size` every 10 minutes. At
+   300 MB it deletes the oldest history in steps (7 d, 3 d, 1 d, 12 h, 6 h, 1 h) and compacts
+   the history tables until the database fits again. At 400 MB it pauses history writes; the
+   clinic keeps running and writes resume once trimming brings it back under 300 MB. Its state
+   is visible in `/actuator/health` under `databaseSizeGuard`.
+
+The limits sit 100–200 MB below Supabase's cap, so even a burst between two checks cannot reach
+500 MB. If it ever did, Supabase switches the database to read-only rather than billing.
 
 ---
 
@@ -277,7 +307,7 @@ working part-time.
 |---|---|---|---|
 | 0 | Skeleton (1 week) | Maven layout, `docker-compose.yml`, `clinic-app` boots against PostgreSQL with Flyway V1, health endpoint, GitHub Actions running tests | `docker compose up` starts the database; CI is green |
 | 1 | Core domain (1–2 weeks) | All tables, JPA entities, repositories, read endpoints, seed data, JWT login with roles | Login test cases from the book pass; dashboard payload endpoint returns seeded clinic |
-| 2 | Simulation engine (2 weeks) | Scheduled tick, patient arrivals by urgency, department assignment, waiting-time updates, room occupancy and release, doctor load, department status rules, patient patience and walkouts (§3.4, Flyway V4), start/stop API; snapshot rows written in the tick's transaction; `/api/history/snapshots` and `/api/history/trends` | Overload, room shortage and medication shortage scenarios appear on their own; walkouts appear when waits exceed patience; snapshots visible in the `department_snapshots` table and via `/api/history/snapshots` |
+| 2 | Simulation engine (2 weeks) | Scheduled tick, patient arrivals by urgency, department assignment, waiting-time updates, room occupancy and release, doctor load, department status rules, patient patience and walkouts (§3.4, Flyway V4), start/stop API; snapshot rows written in the tick's transaction at most once per `history.snapshot-interval` and only while `DatabaseSizeGuard` allows history writes (§3.6); `/api/history/snapshots` and `/api/history/trends` | Overload, room shortage and medication shortage scenarios appear on their own; walkouts appear when waits exceed patience; snapshots visible in the `department_snapshots` table and via `/api/history/snapshots` |
 | 3 | Tools + validation, no LLM (1 week) | Six tool services, `ToolValidator`, `ToolExecutor`, alert and restock generation, unit tests for every validation rule | All tool test cases from the book pass without any model involved |
 | 4 | AI agent (2 weeks) | `ContextBuilder` (state + trends), system prompt, `AnthropicLlmClient`, agent cycle, scheduler, manual scan, decisions stored with context, tokens and latency | Agent detects a seeded overload and opens a room with an explanation; every action has an explanation |
 | 5 | Dashboard (2 weeks) | Login page, live clinic view, history charts, alerts panel, AI recommendations + history, summary view, simulation and agent controls by role | All UI test cases from the book pass |
@@ -341,6 +371,6 @@ From phase 5, `docker compose up` also starts the frontend, so a demo is one com
 | Stack differs from the Phase A book | Update the book and diagrams in the first week; keep this document in the repo as the reference |
 | LLM cost | One request per 15 minutes with a compact context; prompt caching on the system prompt; a `FakeLlmClient` for tests and the evaluation harness dry-runs |
 | Non-deterministic agent behaviour | Strict tool schemas, backend validation, fixed-seed scenarios, repeated runs |
-| History tables grow without bound | Indexed by time; retention job (phase 7) deletes old snapshot and event rows; partition by day only if a measured query gets slow |
+| History tables grow without bound / exceed the free 500 MB | Snapshot interval, 7-day retention on Supabase, and the size guard trimming at 300 MB and pausing history writes at 400 MB (§3.6) |
 | Snapshot inserts slow the tick | One multi-row insert per table per tick (four departments, a handful of medications); measured in phase 2 |
 | Scope creep (medical logic) | Tools are the only actions; no patient-clinical fields in the data model |
