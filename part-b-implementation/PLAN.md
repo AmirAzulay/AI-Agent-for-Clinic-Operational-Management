@@ -166,14 +166,15 @@ Measured on PostgreSQL 16, indexes included: a `department_snapshots` row takes 
 a `medication_snapshots` row ~211 bytes, so one snapshot of 4 departments and 8 medications is
 ~2.8 KB.
 
-| Snapshot every | Per day | 7 days | 30 days |
+| Snapshot every | Per simulated day | 7 days | 30 days |
 |---|---|---|---|
-| 5 s | 49 MB | 340 MB | 1.5 GB |
-| **60 s** | **4 MB** | **28 MB** | 122 MB |
+| 1 sim-minute | 4 MB | 28 MB | 122 MB |
+| **5 sim-minutes** (default) | **0.8 MB** | **6 MB** | 24 MB |
 
-1. **Write less.** The simulation may tick every few seconds, but it writes a snapshot at most
-   once per `history.snapshot-interval` (default 60 s, phase 2). The 15-minute trends still get
-   15 points per department.
+1. **Write less.** The simulation ticks once per simulated minute but writes a snapshot only every
+   `simulation.snapshot-every-minutes` (default 5), so the 15-minute trends get 3–4 points per
+   department. A run lasts one simulated day by default (`simulation.max-ticks: 1440`), about
+   0.8 MB of snapshots, and starting the next run clears the previous run's patients.
 2. **Keep less.** The `supabase` profile keeps snapshots and events for 7 days and AI evidence
    for 30 days (§3.5). Expected steady state: ~30 MB of snapshots plus a few MB of state, AI
    decisions and evaluation results.
@@ -187,6 +188,31 @@ The limits sit 100–200 MB below Supabase's cap, so even a burst between two ch
 500 MB. If it ever did, Supabase switches the database to read-only rather than billing.
 
 ---
+
+### 3.7 Simulation model (phase 2)
+
+- **Time.** Simulated time is tick-based: tick N is `N × minutes_per_tick` simulated minutes after the
+  run started (default 1 minute per tick, a tick every 5 real seconds, so 12× real time). A run
+  starts at 08:00 simulated time and stops by itself after one simulated day. The dashboard and
+  the API measure waiting times against the latest run's simulated clock.
+- **Reproducible.** Every random draw comes from the run's seeded generator and everything is
+  processed in id order, so the same seed and scenario always produce the same run.
+- **One tick** (one transaction): treatments that are due end and free their room → patients
+  arrive per department (Poisson, peaking at 11:00, quiet overnight) with an urgency (50 % LOW,
+  35 % MEDIUM, 15 % HIGH) and a patience → patients past their patience walk out → waiting patients
+  start treatment, most urgent first, while a room and a doctor with capacity are free; treatment
+  takes 10–50 minutes by urgency and usually uses medication → department statuses are updated →
+  every 5 simulated minutes a snapshot is written.
+- **Department status** combines the queue thresholds with room pressure, because patients give up
+  after 15–30 minutes and a short queue can still be a crisis: CRITICAL at max queue or a 45-minute
+  wait; OVERLOADED at the overload threshold or with every room taken and a 25-minute wait; WARNING
+  at the warning threshold or with every room taken and a 15-minute wait.
+- **Scenarios.** `NORMAL`, `RUSH` (1.8× arrivals), `STAFF_SHORTAGE` (one doctor off per department),
+  `MEDICATION_SHORTAGE` (stock starts just above threshold). Starting a run resets the clinic to its
+  initial state first.
+- **Measured** on a normal day (seed 42): ~465 arrivals, ~15 % walkouts, departments reaching
+  Warning/Overloaded/Critical around the peak, the first medication below threshold by mid-afternoon.
+  The constants live in `ClinicModel` so they are easy to tune.
 
 ## 4. Service architecture
 

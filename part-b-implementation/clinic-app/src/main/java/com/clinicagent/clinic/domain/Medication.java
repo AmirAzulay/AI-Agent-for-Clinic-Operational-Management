@@ -24,6 +24,10 @@ public class Medication {
     @Column(nullable = false)
     private int threshold;
 
+    /** Stock a new simulation run starts with. */
+    @Column(name = "initial_stock", nullable = false)
+    private int initialStock;
+
     protected Medication() {
     }
 
@@ -31,6 +35,7 @@ public class Medication {
         this.name = name;
         this.stock = stock;
         this.threshold = threshold;
+        this.initialStock = stock;
     }
 
     public boolean isBelowThreshold() {
@@ -51,6 +56,10 @@ public class Medication {
 
     public void setStock(int stock) {
         this.stock = stock;
+    }
+
+    public int getInitialStock() {
+        return initialStock;
     }
 
     public int getThreshold() {
