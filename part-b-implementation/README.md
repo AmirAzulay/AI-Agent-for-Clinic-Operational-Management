@@ -9,7 +9,7 @@ AI Agent for Clinic Operational Management. The engineering plan is in [PLAN.md]
 | `pom.xml` | Maven parent (Spring Boot 3.5, Java 21) |
 | `clinic-app/` | The backend. Owns PostgreSQL. Domain, history, simulation engine, AI agent, tools + validation. Port 8080 |
 | `frontend/` | React + Vite + TypeScript dashboard. Port 5173 |
-| `docker-compose.yml` | PostgreSQL for local development |
+| `docker-compose.yml` | PostgreSQL + the backend as one unit. `clinic-app/Dockerfile` builds the backend image |
 | `.env.example` | Environment variables. Copy to `.env` |
 
 ## Prerequisites
@@ -36,7 +36,8 @@ After that, the run configurations committed in `.run/` appear in the toolbar dr
 | `clinic-app` | clinic-app on 8080 | Run tool window |
 | `frontend (npm run dev)` | Vite dev server on 5173 | Run tool window |
 
-Start the database first (`docker compose up -d`), then `clinic-app`.
+Start the database first (`docker compose up -d postgres`; a plain `docker compose up` would also
+start the backend in Docker on the same port 8080), then `clinic-app`.
 Each one opens its own tab in the Run tool window at the bottom of IntelliJ; that tab is the
 live log. The green bug icon runs the same configuration under the debugger.
 
@@ -44,14 +45,30 @@ No environment variables are needed locally: the defaults in each `application.y
 `docker-compose.yml`. To override something (for example `JWT_SECRET`), edit the run
 configuration and add it under Environment variables.
 
-## Run locally
+## Run as one unit (Docker)
+
+```bash
+cd part-b-implementation
+cp .env.example .env
+docker compose up -d --build     # postgres + clinic-app
+```
+
+The first build takes a few minutes (Maven downloads); later builds reuse the cached
+dependencies. The backend waits for PostgreSQL to be healthy, applies Flyway migrations and
+listens on http://localhost:8080. `docker compose logs -f clinic-app` follows its log.
+After a code change, `docker compose up -d --build clinic-app` rebuilds and restarts just the
+backend.
+
+## Run locally for development
+
+Use this when you want to debug or hot-restart the backend from the IDE.
 
 ```bash
 cd part-b-implementation
 cp .env.example .env
 
-# 1. database
-docker compose up -d
+# 1. database only
+docker compose up -d postgres
 
 # 2. backend (a terminal, or the IntelliJ run configuration)
 ./mvnw -pl clinic-app spring-boot:run
@@ -67,7 +84,7 @@ cd frontend && npm install && npm run dev
 | http://localhost:8080/swagger-ui.html | clinic-app API docs |
 | `localhost:5432` | PostgreSQL. Database, user and password `clinic`. Connect with any client (IntelliJ Database tool, `psql`, DBeaver) |
 
-Stop the database with `docker compose down`. Add `-v` to also delete the data.
+Stop everything with `docker compose down`. Add `-v` to also delete the database data.
 
 ## Logging in
 
@@ -109,6 +126,7 @@ request, plus the frontend build. No API keys are needed for tests.
 | 0 Skeleton | done – backend boots, Flyway V1 applied, CI green |
 | 1 Core domain | done – JPA entities for all tables, seed clinic (V2), read API, JWT login with roles |
 | Single backend | done – Elasticsearch and `history-service` removed; history tables in PostgreSQL (V3) |
+| Docker image | done – `clinic-app/Dockerfile`; `docker compose up` runs PostgreSQL + backend together |
 | 2 Simulation engine | next |
 | 3 Tools + validation | |
 | 4 AI agent | |

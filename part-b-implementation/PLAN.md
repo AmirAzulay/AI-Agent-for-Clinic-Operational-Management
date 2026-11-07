@@ -21,7 +21,7 @@ repository layout and build order.
 | LLM | Anthropic Claude via the official Java SDK, model `claude-opus-5-5` | Native tool calling with strict JSON schemas; wrapped behind an `LlmClient` interface so OpenAI/Gemini can be added later as the book allows |
 | Auth | Spring Security + JWT | Covers the authentication and authorization NFRs |
 | Migrations | Flyway | Versioned, reviewable schema changes |
-| Local environment | Docker Compose | One command brings up PostgreSQL, later the backend and frontend |
+| Local environment | Docker Compose | One command brings up PostgreSQL and the backend; the frontend joins in phase 5 |
 | Tests | JUnit 5 + Testcontainers | Real PostgreSQL in integration tests |
 | CI | GitHub Actions | Build + tests on every push and pull request |
 | IDE | IntelliJ IDEA Community (backend and frontend) | Free; best Spring experience |
@@ -148,7 +148,8 @@ part-b-implementation/
         AgentService (the cycle), AgentScheduler (15-minute trigger)
       api/                    DTOs, error handling, OpenAPI config
   frontend/                   React + Vite + TypeScript
-  docker-compose.yml          postgres (later clinic-app and frontend)
+  docker-compose.yml          postgres, clinic-app (frontend joins in phase 5)
+  clinic-app/Dockerfile       multi-stage build: Maven package, then a JRE image
   docs/                       ERD, API spec, diagrams
 ```
 
@@ -241,7 +242,7 @@ working part-time.
 | 4 | AI agent (2 weeks) | `ContextBuilder` (state + trends), system prompt, `AnthropicLlmClient`, agent cycle, scheduler, manual scan, decisions stored with context, tokens and latency | Agent detects a seeded overload and opens a room with an explanation; every action has an explanation |
 | 5 | Dashboard (2 weeks) | Login page, live clinic view, history charts, alerts panel, AI recommendations + history, summary view, simulation and agent controls by role | All UI test cases from the book pass |
 | 6 | Evaluation harness (1 week) | Scenario JSON files with expected issues and expected actions, scorer that computes the four section-8 metrics, results stored in `evaluation_results`, evaluation page in the dashboard | Metrics computed for at least 10 scenarios, 3 runs each |
-| 7 | Hardening (1 week) | Testcontainers integration tests, history retention job, Docker images for `clinic-app` and frontend, README with one-command setup, final diagrams updated | Full system test case from the book passes in CI |
+| 7 | Hardening (1 week) | Testcontainers integration tests, history retention job, Docker image for the frontend, README with one-command setup, final diagrams updated | Full system test case from the book passes in CI |
 | 8 | Optional extractions (only if time allows) | `simulation-service`, then `agent-service`, per §4.0.1 | Evaluation metrics unchanged after the split |
 
 Why this order: tools are built and tested before the LLM so the agent has deterministic
@@ -274,17 +275,19 @@ Include at least two "healthy clinic" scenarios to measure false positives.
 ```bash
 # prerequisites: Docker Desktop, JDK 21, Node 20
 cp .env.example .env            # add ANTHROPIC_API_KEY
-docker compose up -d            # postgres
-./mvnw -pl clinic-app spring-boot:run          # terminal 1
-cd frontend && npm install && npm run dev      # terminal 2
+docker compose up -d --build    # postgres + clinic-app as one unit
+cd frontend && npm install && npm run dev      # dashboard dev server
+
+# or, to debug the backend from the IDE:
+docker compose up -d postgres
+./mvnw -pl clinic-app spring-boot:run
 ```
 
 - clinic-app: http://localhost:8080 (Swagger at `/swagger-ui.html`)
 - Frontend: http://localhost:5173
 - PostgreSQL: `localhost:5432`, database, user and password `clinic` (any client: IntelliJ Database tool, `psql`, DBeaver)
 
-From phase 7, `docker compose up` with no arguments also starts the backend and the frontend
-for demos.
+From phase 5, `docker compose up` also starts the frontend, so a demo is one command.
 
 ---
 

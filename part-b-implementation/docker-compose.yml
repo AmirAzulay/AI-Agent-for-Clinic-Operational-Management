@@ -17,5 +17,30 @@ services:
       timeout: 5s
       retries: 10
 
+  clinic-app:
+    build:
+      context: .
+      dockerfile: clinic-app/Dockerfile
+    image: clinic-agent/clinic-app:local
+    environment:
+      CLINIC_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-clinic}
+      CLINIC_DB_USER: ${POSTGRES_USER:-clinic}
+      CLINIC_DB_PASSWORD: ${POSTGRES_PASSWORD:-clinic}
+      JWT_SECRET: ${JWT_SECRET:-clinic-agent-dev-secret-change-me-0123456789abcdef}
+      JWT_TTL: ${JWT_TTL:-8h}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 10
+    restart: unless-stopped
+
 volumes:
   postgres-data:
