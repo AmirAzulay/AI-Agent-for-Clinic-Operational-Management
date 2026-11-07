@@ -74,7 +74,7 @@ class WalkoutServiceTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void highUrgencyAndPatientsInTreatmentNeverLeave() {
+    void patientsWithoutPatienceOrInTreatmentNeverLeave() {
         Patient high = arrived(generalMedicine, Urgency.HIGH, Duration.ofHours(5), null);
         Patient inTreatment = arrived(generalMedicine, Urgency.LOW, Duration.ofHours(2), 45);
         inTreatment.setStatus(PatientStatus.IN_TREATMENT);

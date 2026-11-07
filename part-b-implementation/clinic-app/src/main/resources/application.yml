@@ -37,14 +37,17 @@ security:
 simulation:
   walkouts:
     # Minutes a waiting patient tolerates before leaving, per urgency (PLAN.md §3.4).
-    # An urgency that is not listed never leaves (HIGH).
+    # An urgency that is not listed never leaves.
     patience:
       LOW:
-        min-minutes: 45
-        max-minutes: 90
+        min-minutes: 15
+        max-minutes: 30
       MEDIUM:
-        min-minutes: 60
-        max-minutes: 120
+        min-minutes: 20
+        max-minutes: 45
+      HIGH:
+        min-minutes: 30
+        max-minutes: 360
 
 history:
   retention:

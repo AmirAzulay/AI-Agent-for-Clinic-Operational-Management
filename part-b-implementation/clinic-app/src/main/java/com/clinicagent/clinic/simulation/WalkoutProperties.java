@@ -8,7 +8,7 @@ import java.util.Map;
 
 /**
  * How long simulated patients are willing to wait, per urgency (PLAN.md §3.4). A missing urgency
- * means those patients never leave. Defaults: LOW 45–90 min, MEDIUM 60–120 min, HIGH never.
+ * means those patients never leave. Defaults: LOW 15–30 min, MEDIUM 20–45 min, HIGH 30 min–6 h.
  */
 @ConfigurationProperties(prefix = "simulation.walkouts")
 public record WalkoutProperties(Map<Urgency, PatienceRange> patience) {
@@ -16,8 +16,9 @@ public record WalkoutProperties(Map<Urgency, PatienceRange> patience) {
     public WalkoutProperties {
         if (patience == null) {
             patience = new EnumMap<>(Urgency.class);
-            patience.put(Urgency.LOW, new PatienceRange(45, 90));
-            patience.put(Urgency.MEDIUM, new PatienceRange(60, 120));
+            patience.put(Urgency.LOW, new PatienceRange(15, 30));
+            patience.put(Urgency.MEDIUM, new PatienceRange(20, 45));
+            patience.put(Urgency.HIGH, new PatienceRange(30, 360));
         }
         patience = Map.copyOf(patience);
     }
