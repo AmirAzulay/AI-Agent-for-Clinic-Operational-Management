@@ -44,6 +44,13 @@ public class Patient {
     @Column(name = "arrived_at", nullable = false)
     private Instant arrivedAt;
 
+    /** Minutes this patient is willing to wait; null means they never leave. */
+    @Column(name = "patience_min")
+    private Integer patienceMin;
+
+    @Column(name = "left_at")
+    private Instant leftAt;
+
     @Column(name = "treatment_started_at")
     private Instant treatmentStartedAt;
 
@@ -62,14 +69,35 @@ public class Patient {
     }
 
     public Patient(Department department, Urgency urgency, Instant arrivedAt) {
+        this(department, urgency, arrivedAt, null);
+    }
+
+    public Patient(Department department, Urgency urgency, Instant arrivedAt, Integer patienceMin) {
         this.department = department;
         this.urgency = urgency;
         this.arrivedAt = arrivedAt;
+        this.patienceMin = patienceMin;
     }
 
-    /** Minutes spent waiting: until treatment started, or until {@code now} if still waiting. */
+    /** True if the patient is still waiting and has waited longer than their patience at {@code now}. */
+    public boolean hasRunOutOfPatience(Instant now) {
+        return status == PatientStatus.WAITING
+                && patienceMin != null
+                && waitingMinutes(now) > patienceMin;
+    }
+
+    /** The patient walks out: they leave the queue without treatment. */
+    public void leave(Instant at) {
+        if (status != PatientStatus.WAITING) {
+            throw new IllegalStateException("Only a waiting patient can leave, patient " + id + " is " + status);
+        }
+        this.status = PatientStatus.LEFT;
+        this.leftAt = at;
+    }
+
+    /** Minutes spent waiting: until treatment started or the patient left, or until {@code now}. */
     public double waitingMinutes(Instant now) {
-        Instant end = treatmentStartedAt != null ? treatmentStartedAt : now;
+        Instant end = treatmentStartedAt != null ? treatmentStartedAt : leftAt != null ? leftAt : now;
         return Duration.between(arrivedAt, end).toSeconds() / 60.0;
     }
 
@@ -95,6 +123,14 @@ public class Patient {
 
     public Instant getArrivedAt() {
         return arrivedAt;
+    }
+
+    public Integer getPatienceMin() {
+        return patienceMin;
+    }
+
+    public Instant getLeftAt() {
+        return leftAt;
     }
 
     public Instant getTreatmentStartedAt() {

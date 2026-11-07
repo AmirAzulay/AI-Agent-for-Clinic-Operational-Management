@@ -127,6 +127,7 @@ request, plus the frontend build. No API keys are needed for tests.
 | 1 Core domain | done – JPA entities for all tables, seed clinic (V2), read API, JWT login with roles |
 | Single backend | done – Elasticsearch and `history-service` removed; history tables in PostgreSQL (V3) |
 | Docker image | done – `clinic-app/Dockerfile`; `docker compose up` runs PostgreSQL + backend together |
+| Walkouts + retention | done – patient patience and walkouts (V4, `WalkoutService`), daily history retention job and `POST /api/history/retention/run` |
 | 2 Simulation engine | next |
 | 3 Tools + validation | |
 | 4 AI agent | |

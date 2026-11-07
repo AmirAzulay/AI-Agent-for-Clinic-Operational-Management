@@ -34,6 +34,27 @@ security:
     secret: ${JWT_SECRET:clinic-agent-dev-secret-change-me-0123456789abcdef}
     ttl: ${JWT_TTL:8h}
 
+simulation:
+  walkouts:
+    # Minutes a waiting patient tolerates before leaving, per urgency (PLAN.md §3.4).
+    # An urgency that is not listed never leaves (HIGH).
+    patience:
+      LOW:
+        min-minutes: 45
+        max-minutes: 90
+      MEDIUM:
+        min-minutes: 60
+        max-minutes: 120
+
+history:
+  retention:
+    # Daily hard delete of old history rows (PLAN.md §3.5).
+    enabled: ${HISTORY_RETENTION_ENABLED:true}
+    cron: ${HISTORY_RETENTION_CRON:0 30 3 * * *}
+    days: ${HISTORY_RETENTION_DAYS:30}
+    evidence-days: ${HISTORY_EVIDENCE_RETENTION_DAYS:180}
+    batch-size: 5000
+
 logging:
   level:
     com.clinicagent: INFO

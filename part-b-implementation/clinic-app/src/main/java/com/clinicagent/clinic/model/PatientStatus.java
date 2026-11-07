@@ -4,5 +4,7 @@ package com.clinicagent.clinic.model;
 public enum PatientStatus {
     WAITING,
     IN_TREATMENT,
-    DONE
+    DONE,
+    /** Left the queue before treatment because the wait exceeded their patience (PLAN.md §3.4). */
+    LEFT
 }

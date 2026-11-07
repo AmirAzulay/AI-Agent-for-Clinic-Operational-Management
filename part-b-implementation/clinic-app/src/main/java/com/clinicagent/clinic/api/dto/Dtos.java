@@ -44,11 +44,13 @@ public final class Dtos {
     }
 
     public record PatientDto(Long id, Long departmentId, Urgency urgency, PatientStatus status, Instant arrivedAt,
-                             double waitingMinutes, Instant treatmentStartedAt, Instant treatmentEndedAt,
+                             double waitingMinutes, Integer patienceMin, Instant leftAt,
+                             Instant treatmentStartedAt, Instant treatmentEndedAt,
                              Long roomId, Long doctorId) {
         public static PatientDto from(Patient p, Instant now) {
             return new PatientDto(p.getId(), p.getDepartment().getId(), p.getUrgency(), p.getStatus(),
-                    p.getArrivedAt(), p.waitingMinutes(now), p.getTreatmentStartedAt(), p.getTreatmentEndedAt(),
+                    p.getArrivedAt(), p.waitingMinutes(now), p.getPatienceMin(), p.getLeftAt(),
+                    p.getTreatmentStartedAt(), p.getTreatmentEndedAt(),
                     p.getRoom() != null ? p.getRoom().getId() : null,
                     p.getDoctor() != null ? p.getDoctor().getId() : null);
         }
