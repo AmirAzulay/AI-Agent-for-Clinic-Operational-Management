@@ -23,12 +23,14 @@ services:
       dockerfile: clinic-app/Dockerfile
     image: clinic-agent/clinic-app:local
     environment:
-      CLINIC_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-clinic}
-      CLINIC_DB_USER: ${POSTGRES_USER:-clinic}
-      CLINIC_DB_PASSWORD: ${POSTGRES_PASSWORD:-clinic}
+      # Defaults point at the postgres service; set CLINIC_DB_* in .env to use Supabase instead.
+      CLINIC_DB_URL: ${CLINIC_DB_URL_DOCKER:-jdbc:postgresql://postgres:5432/${POSTGRES_DB:-clinic}}
+      CLINIC_DB_USER: ${CLINIC_DB_USER:-clinic}
+      CLINIC_DB_PASSWORD: ${CLINIC_DB_PASSWORD:-clinic}
       JWT_SECRET: ${JWT_SECRET:-clinic-agent-dev-secret-change-me-0123456789abcdef}
       JWT_TTL: ${JWT_TTL:-8h}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
     ports:
       - "8080:8080"
     depends_on:
