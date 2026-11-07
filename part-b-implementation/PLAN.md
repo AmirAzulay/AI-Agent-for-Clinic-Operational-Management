@@ -19,7 +19,7 @@ repository layout and build order.
 | Frontend | React + Vite + TypeScript | Matches the project book; fast dev loop |
 | Database | **PostgreSQL 16** (see §2 for the MySQL comparison) – both the current state and the history | Matches the project book, JSONB for tool-call payloads and context, full-text search for AI explanations, window functions for trends |
 | LLM | Anthropic Claude via the official Java SDK, model `claude-opus-5-5` | Native tool calling with strict JSON schemas; wrapped behind an `LlmClient` interface so OpenAI/Gemini can be added later as the book allows |
-| Auth | Spring Security + JWT | Covers the authentication and authorization NFRs |
+| Auth | Spring Security + JWT, email + password, staff only (§5.3) | Covers the authentication and authorization NFRs; no patient or public access |
 | Migrations | Flyway | Versioned, reviewable schema changes |
 | Local environment | Docker Compose | One command brings up PostgreSQL and the backend; the frontend joins in phase 5 |
 | Tests | JUnit 5 + Testcontainers | Real PostgreSQL in integration tests |
@@ -93,7 +93,7 @@ transaction as the tool it executes.
 
 | Table | Key columns | Notes |
 |---|---|---|
-| `users` | id, username, password_hash, role (`CLINIC_MANAGER`, `RECEPTION`, `MEDICAL_STAFF`) | Login + role-based access |
+| `users` | id, email, display_name, password_hash, role (`CLINIC_MANAGER`, `RECEPTION`, `MEDICAL_STAFF`), active | Staff login + role-based access (§5.3); email is a login name only (V5) |
 | `departments` | id, name, status (`NORMAL`, `WARNING`, `OVERLOADED`, `CRITICAL`), max_queue, warning_threshold, overload_threshold | General medicine, pediatrics, orthopedics, emergency |
 | `treatment_rooms` | id, department_id, name, status (`AVAILABLE`, `OCCUPIED`, `INACTIVE`, `MAINTENANCE`) | |
 | `doctors` | id, department_id, name, available (bool), max_concurrent_patients | |
@@ -275,7 +275,9 @@ All endpoints are served by `clinic-app` on port 8080 and documented with spring
 
 | Method & path | Purpose |
 |---|---|
-| `POST /api/auth/login` | Returns a JWT |
+| `POST /api/auth/login` | Staff email + password → JWT |
+| `GET /api/auth/me`, `POST /api/auth/password` | Current staff member; change own password |
+| `GET /api/users`, `POST /api/users`, `PATCH /api/users/{id}` | Staff account management, clinic manager only (§5.3) |
 | `GET /api/clinic/state` | Full dashboard payload (departments, queues, rooms, doctors, medications, active alerts) |
 | `GET /api/departments`, `/rooms`, `/doctors`, `/patients`, `/medications`, `/alerts` | Read endpoints with filters |
 | `POST /api/simulation/start`, `/stop`, `GET /api/simulation/status` | Clinic manager only |
@@ -295,6 +297,23 @@ All endpoints are served by `clinic-app` on port 8080 and documented with spring
 
 There are no ingest endpoints: history rows are written inside the backend by the code that
 produces them.
+
+### 5.3 Access: clinic staff only
+
+The application is an internal tool for clinic staff: managers, reception, doctors and nurses.
+**Patients and the public never have access.**
+
+- There is no sign-up. The clinic manager creates every account (`POST /api/users`) with a role:
+  `CLINIC_MANAGER`, `RECEPTION` or `MEDICAL_STAFF` (doctors and nurses). There is no patient role.
+- Staff log in with an email and a password. The email is only a login name: it is never verified
+  and the app never sends mail, so it can be a placeholder such as `dana@clinic.local`.
+- Passwords are stored as bcrypt hashes, at least 8 characters. Staff change their own with the
+  current one; the manager can reset anyone's.
+- Accounts are deactivated, never deleted. Every request re-reads the account, so deactivation and
+  role changes take effect immediately, not when the 8-hour token expires.
+- Patients exist only as operational records (department, urgency, status, times) with no name,
+  ID number or contact details.
+- Public without a token: login, the health check (status only) and the API docs.
 
 ---
 

@@ -17,6 +17,7 @@ import java.util.List;
 public class JwtService {
 
     public static final String ROLES_CLAIM = "roles";
+    public static final String EMAIL_CLAIM = "email";
 
     private final JwtEncoder encoder;
     private final JwtProperties properties;
@@ -33,7 +34,8 @@ public class JwtService {
         Instant expiresAt = now.plus(properties.ttl());
         JwtClaimsSet claims = JwtClaimsSet.builder()
                 .issuer("clinic-app")
-                .subject(user.getUsername())
+                .subject(user.getId().toString())
+                .claim(EMAIL_CLAIM, user.getEmail())
                 .issuedAt(now)
                 .expiresAt(expiresAt)
                 .claim(ROLES_CLAIM, List.of(user.getRole().name()))

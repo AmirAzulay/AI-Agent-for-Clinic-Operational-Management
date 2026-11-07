@@ -36,7 +36,7 @@ class ClinicReadControllerTest extends PostgresIntegrationTest {
     @BeforeEach
     void login() {
         String token = rest.postForEntity("/api/auth/login",
-                new LoginRequest("staff", "staff123"), LoginResponse.class).getBody().token();
+                new LoginRequest("staff@clinic.local", "staff123"), LoginResponse.class).getBody().token();
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(token);
         authorized = new HttpEntity<>(headers);

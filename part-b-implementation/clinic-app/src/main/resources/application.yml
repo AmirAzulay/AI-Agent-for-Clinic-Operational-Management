@@ -26,7 +26,8 @@ management:
         include: health,info
   endpoint:
     health:
-      show-details: always
+      # Details (database size, limits) only for logged-in staff; anonymous callers see UP or DOWN.
+      show-details: when-authorized
 
 security:
   jwt:
