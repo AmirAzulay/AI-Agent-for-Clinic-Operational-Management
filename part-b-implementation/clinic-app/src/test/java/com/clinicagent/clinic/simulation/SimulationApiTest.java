@@ -122,6 +122,35 @@ class SimulationApiTest extends PostgresIntegrationTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void theActivityFeedMatchesThePatientsTable() {
+        rest.exchange("/api/simulation/start", HttpMethod.POST, manager(Map.of("seed", 21, "scenario", "RUSH", "autoTick", false)), String.class);
+        rest.exchange("/api/simulation/step?ticks=180", HttpMethod.POST, manager(null), String.class);
+
+        Map<String, Object> activity = rest.exchange("/api/clinic/activity?minutes=1440&limit=10", HttpMethod.GET, staff(),
+                new ParameterizedTypeReference<Map<String, Object>>() {}).getBody();
+        Map<String, Integer> total = (Map<String, Integer>) activity.get("total");
+        List<Map<String, Object>> events = (List<Map<String, Object>>) activity.get("events");
+
+        int count = jdbc.queryForObject("select count(*) from patients", Integer.class);
+        assertThat(total.get("arrived")).isEqualTo(count).isPositive();
+        assertThat(total.get("treated")).isEqualTo(jdbc.queryForObject("select count(*) from patients where status = 'DONE'", Integer.class));
+        assertThat(total.get("walkedOut")).isEqualTo(jdbc.queryForObject("select count(*) from patients where status = 'LEFT'", Integer.class)).isPositive();
+        assertThat(events).hasSize(10);
+        assertThat(activity.get("simClock")).isEqualTo("11:00");
+        assertThat((List<?>) activity.get("departments")).hasSize(4);
+    }
+
+    @Test
+    void theActivityFeedIsEmptyBeforeAnyRunAndNeedsALogin() {
+        assertThat(rest.getForEntity("/api/clinic/activity", String.class).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        Map<String, Object> activity = rest.exchange("/api/clinic/activity", HttpMethod.GET, staff(),
+                new ParameterizedTypeReference<Map<String, Object>>() {}).getBody();
+        assertThat(activity.get("runId")).isNull();
+        assertThat((List<?>) activity.get("events")).isEmpty();
+    }
+
+    @Test
     void theClinicViewUsesTheSimulatedClock() {
         rest.exchange("/api/simulation/start", HttpMethod.POST, manager(Map.of("seed", 11, "autoTick", false)), String.class);
         rest.exchange("/api/simulation/step?ticks=120", HttpMethod.POST, manager(null), String.class);

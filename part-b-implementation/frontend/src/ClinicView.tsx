@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import { api, ApiError, type Alert, type ClinicState, type DepartmentState, type Medication, type SimulationStatus } from './api'
+import { api, ApiError, type Activity, type Alert, type ClinicState, type DepartmentState, type Medication, type SimulationStatus } from './api'
+import PatientFlow from './PatientFlow'
 import SimulationBar from './SimulationBar'
 
-const REFRESH_MS = 5000
+const REFRESH_MS = 3000
 
 const STATUS_LABEL: Record<DepartmentState['status'], string> = {
   NORMAL: 'Normal',
@@ -16,14 +17,17 @@ export default function ClinicView({ token, isManager, onUnauthorized }:
   { token: string; isManager: boolean; onUnauthorized: () => void }) {
   const [state, setState] = useState<ClinicState | null>(null)
   const [simulation, setSimulation] = useState<SimulationStatus | null>(null)
+  const [activity, setActivity] = useState<Activity | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
 
   const load = useCallback(async () => {
     try {
-      const [clinic, sim] = await Promise.all([api.clinicState(token), api.simulationStatus(token)])
+      const [clinic, sim, flow] = await Promise.all(
+        [api.clinicState(token), api.simulationStatus(token), api.activity(token)])
       setState(clinic)
       setSimulation(sim)
+      setActivity(flow)
       setUpdatedAt(new Date())
       setError(null)
     } catch (e) {
@@ -74,6 +78,8 @@ export default function ClinicView({ token, isManager, onUnauthorized }:
       <section className="departments" aria-label="Departments">
         {state.departments.map((d) => <DepartmentCard key={d.id} department={d} />)}
       </section>
+
+      <PatientFlow activity={activity} />
 
       <div className="columns">
         <MedicationsPanel medications={state.medications} />

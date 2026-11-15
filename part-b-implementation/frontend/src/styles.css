@@ -178,6 +178,23 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color:
 .bar.thin { height: 4px; }
 button.danger { background: var(--critical); border-color: var(--critical); color: #fff; }
 
+/* --- patient flow --- */
+.flow { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; align-items: start; }
+.flow .table tr.total td { font-weight: 600; border-bottom: none; }
+.flow p { margin: 8px 0 0; }
+.feed { list-style: none; margin: 0; padding: 0; max-height: 340px; overflow-y: auto; font-size: 14px; }
+.feed li { display: grid; grid-template-columns: 44px 18px 1fr; gap: 6px; padding: 5px 4px; border-bottom: 1px solid var(--border); }
+.feed-time { color: var(--muted); font-variant-numeric: tabular-nums; }
+.feed-icon { font-weight: 700; text-align: center; }
+.flow-in .feed-icon { color: var(--primary); }
+.flow-start .feed-icon { color: var(--warning); }
+.flow-out .feed-icon { color: var(--normal); }
+.flow-left .feed-icon, td.flow-left { color: var(--critical); }
+.urgency { font-size: 11px; font-weight: 600; padding: 0 5px; border-radius: 4px; }
+.urgency-low { color: var(--normal); background: var(--normal-bg); }
+.urgency-medium { color: var(--warning); background: var(--warning-bg); }
+.urgency-high { color: var(--critical); background: var(--critical-bg); }
+
 /* --- panels --- */
 .columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; align-items: start; }
 
