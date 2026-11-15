@@ -6,4 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface AiActionRepository extends JpaRepository<AiAction, Long> {
 
     List<AiAction> findAllByOrderByCreatedAtDesc();
+
+    List<AiAction> findByScanIdInOrderByIdAsc(java.util.Collection<Long> scanIds);
 }

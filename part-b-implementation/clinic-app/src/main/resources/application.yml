@@ -15,6 +15,18 @@ spring:
   mvc:
     problemdetails:
       enabled: true
+  ai:
+    mcp:
+      server:
+        # The clinic tools for the AI agent, at POST /mcp (Streamable HTTP). Locked behind
+        # agent.service-token (AgentServiceSecurity); without a token nobody can call them.
+        name: clinic
+        version: 1.0.0
+        type: SYNC
+        protocol: STREAMABLE
+        instructions: >-
+          Tools to observe and manage a simulated clinic. Every action is validated by the backend
+          and must include a reason; a rejected call returns why.
 
 server:
   port: 8080
@@ -28,6 +40,10 @@ management:
     health:
       # Details (database size, limits) only for logged-in staff; anonymous callers see UP or DOWN.
       show-details: when-authorized
+
+agent:
+  # Shared secret between clinic-app and the agent service. Empty = the MCP endpoint is closed.
+  service-token: ${AGENT_SERVICE_TOKEN:}
 
 security:
   jwt:

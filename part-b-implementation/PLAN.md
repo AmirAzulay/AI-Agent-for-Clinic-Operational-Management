@@ -278,6 +278,22 @@ domain entities (they share transactions).
 Every tool call is logged with its validation result even when rejected. Rejected calls count
 toward the "incorrect action" metric.
 
+### 4.1.1 How the tools are exposed (phase 3, built)
+
+The tools live in clinic-app and are exposed as an **MCP server** (`POST /mcp`, Streamable HTTP,
+Spring AI). The agent connects to it as an MCP client, so the database, the validator and the
+transaction stay in clinic-app and the agent only ever *requests* actions. Names on the MCP side:
+`get_clinic_state`, `open_room`, `create_alert`, `escalate_department_status` (the book's
+SET_DEPARTMENT_STATUS: upward only, one level at a time, for a limited time, because the simulation
+computes the status itself), `request_medication_restock` (delivered 30 simulated minutes later),
+`write_summary`. Every action requires a reason and a running simulation; every call, executed or
+rejected, is an `ai_actions` row under the current agent run (`ai_scans`). Access needs the shared
+`AGENT_SERVICE_TOKEN`; staff logins cannot call the tools.
+
+The agent itself (phase 4) is a separate service built on the Claude Agent SDK: skills as
+`.claude/skills/*/SKILL.md`, only the `clinic` MCP tools allowed, plus an optional read-only
+connection to the database for analysis questions.
+
 ### 4.2 Agent cycle
 
 1. `AgentScheduler` fires every 15 minutes, or `POST /api/agent/scan` fires it manually.

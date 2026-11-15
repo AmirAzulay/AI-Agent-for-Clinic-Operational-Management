@@ -35,11 +35,92 @@ public class AiScan {
     @Column
     private String summary;
 
+    @Column(name = "run_id")
+    private Long runId;
+
+    @Column(length = 64)
+    private String skill;
+
+    @Column(name = "sim_started_at")
+    private Instant simStartedAt;
+
+    @Column(length = 64)
+    private String model;
+
+    @Column(name = "latency_ms")
+    private Long latencyMs;
+
+    @Column(name = "input_tokens")
+    private Integer inputTokens;
+
+    @Column(name = "output_tokens")
+    private Integer outputTokens;
+
+    @Column(name = "cost_usd")
+    private java.math.BigDecimal costUsd;
+
     protected AiScan() {
     }
 
     public AiScan(ScanTrigger triggerType) {
         this.triggerType = triggerType;
+    }
+
+    public AiScan(ScanTrigger triggerType, String skill, Long runId, Instant simStartedAt) {
+        this(triggerType);
+        this.skill = skill;
+        this.runId = runId;
+        this.simStartedAt = simStartedAt;
+    }
+
+    /** Usage reported by the agent when it finishes. Any value may be null. */
+    public void recordUsage(String model, Long latencyMs, Integer inputTokens, Integer outputTokens,
+                            java.math.BigDecimal costUsd) {
+        this.model = model;
+        this.latencyMs = latencyMs;
+        this.inputTokens = inputTokens;
+        this.outputTokens = outputTokens;
+        this.costUsd = costUsd;
+    }
+
+    public void setSummary(String summary) {
+        this.summary = summary;
+    }
+
+    public boolean isFinished() {
+        return finishedAt != null;
+    }
+
+    public Long getRunId() {
+        return runId;
+    }
+
+    public String getSkill() {
+        return skill;
+    }
+
+    public Instant getSimStartedAt() {
+        return simStartedAt;
+    }
+
+    public String getModel() {
+        return model;
+    }
+
+    public Long getLatencyMs() {
+        return latencyMs;
+    }
+
+    public Integer getInputTokens() {
+        return inputTokens;
+    }
+
+    public Integer getOutputTokens() {
+        return outputTokens;
+    }
+
+    public java.math.BigDecimal getCostUsd() {
+        return costUsd;
     }
 
     @PrePersist

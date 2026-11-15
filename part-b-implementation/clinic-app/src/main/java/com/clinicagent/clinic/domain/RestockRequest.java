@@ -46,6 +46,13 @@ public class RestockRequest {
     @Column(name = "fulfilled_at")
     private Instant fulfilledAt;
 
+    @Column(name = "run_id")
+    private Long runId;
+
+    /** Simulated time the delivery arrives. */
+    @Column(name = "deliver_at")
+    private Instant deliverAt;
+
     protected RestockRequest() {
     }
 
@@ -53,6 +60,29 @@ public class RestockRequest {
         this.medication = medication;
         this.quantity = quantity;
         this.createdBy = createdBy;
+    }
+
+    public RestockRequest(Long runId, Medication medication, int quantity, Actor createdBy, Instant simNow,
+                          Instant deliverAt) {
+        this(medication, quantity, createdBy);
+        this.runId = runId;
+        this.createdAt = simNow;
+        this.deliverAt = deliverAt;
+    }
+
+    /** The delivery arrives: stock goes up and the request is closed. */
+    public void fulfil(Instant at) {
+        this.status = RestockStatus.FULFILLED;
+        this.fulfilledAt = at;
+        medication.setStock(medication.getStock() + quantity);
+    }
+
+    public Long getRunId() {
+        return runId;
+    }
+
+    public Instant getDeliverAt() {
+        return deliverAt;
     }
 
     @PrePersist
@@ -90,8 +120,4 @@ public class RestockRequest {
         return fulfilledAt;
     }
 
-    public void fulfil(Instant at) {
-        this.status = RestockStatus.FULFILLED;
-        this.fulfilledAt = at;
-    }
 }

@@ -25,7 +25,8 @@ public class ClinicResetService {
         jdbc.update("update treatment_rooms set status = initial_status");
         jdbc.update("update doctors set available = initially_available");
         jdbc.update("update medications set stock = initial_stock");
-        jdbc.update("update departments set status = 'NORMAL'");
+        jdbc.update("update departments set status = 'NORMAL', status_override = null, status_override_until = null");
+        jdbc.update("update restock_requests set status = 'FULFILLED', fulfilled_at = now() where status = 'OPEN'");
         jdbc.update("update alerts set active = false, resolved_at = now() where active");
 
         if (scenario.oneDoctorOffPerDepartment()) {

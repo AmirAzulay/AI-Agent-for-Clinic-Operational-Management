@@ -30,6 +30,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:-clinic-agent-dev-secret-change-me-0123456789abcdef}
       JWT_TTL: ${JWT_TTL:-8h}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      AGENT_SERVICE_TOKEN: ${AGENT_SERVICE_TOKEN:-}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
     ports:
       - "8080:8080"

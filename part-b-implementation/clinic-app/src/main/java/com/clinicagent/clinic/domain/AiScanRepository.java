@@ -6,4 +6,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface AiScanRepository extends JpaRepository<AiScan, Long> {
 
     Optional<AiScan> findFirstByOrderByStartedAtDesc();
+
+    Optional<AiScan> findFirstByFinishedAtIsNullOrderByIdDesc();
+
+    java.util.List<AiScan> findTop20ByOrderByIdDesc();
 }
