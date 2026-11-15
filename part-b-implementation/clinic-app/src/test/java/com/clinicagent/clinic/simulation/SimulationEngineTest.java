@@ -17,7 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /** The engine against a real PostgreSQL, with manual ticks so runs are fast and deterministic. */
-class SimulationEngineTest extends PostgresIntegrationTest {
+public class SimulationEngineTest extends PostgresIntegrationTest {
 
     @Autowired
     SimulationEngine engine;
@@ -34,12 +34,16 @@ class SimulationEngineTest extends PostgresIntegrationTest {
     }
 
     /** Stops any run and removes everything simulations wrote, so other test classes see the seeded clinic. */
-    static void cleanSimulationData(SimulationEngine engine, JdbcTemplate jdbc) {
+    public static void cleanSimulationData(SimulationEngine engine, JdbcTemplate jdbc) {
         try {
             engine.stop();
         } catch (ResponseStatusException notRunning) {
             // nothing running
         }
+        jdbc.update("delete from ai_actions");
+        jdbc.update("delete from ai_scans");
+        jdbc.update("delete from alerts");
+        jdbc.update("delete from restock_requests");
         jdbc.update("delete from department_snapshots");
         jdbc.update("delete from medication_snapshots");
         jdbc.update("delete from patients");
@@ -47,7 +51,7 @@ class SimulationEngineTest extends PostgresIntegrationTest {
         jdbc.update("update treatment_rooms set status = initial_status");
         jdbc.update("update doctors set available = initially_available");
         jdbc.update("update medications set stock = initial_stock");
-        jdbc.update("update departments set status = 'NORMAL'");
+        jdbc.update("update departments set status = 'NORMAL', status_override = null, status_override_until = null");
     }
 
     private SimulationRun start(SimulationScenario scenario, long seed) {

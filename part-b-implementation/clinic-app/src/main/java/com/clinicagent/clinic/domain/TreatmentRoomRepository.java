@@ -8,4 +8,9 @@ public interface TreatmentRoomRepository extends JpaRepository<TreatmentRoom, Lo
     List<TreatmentRoom> findAllByOrderByIdAsc();
 
     List<TreatmentRoom> findByDepartmentIdOrderByIdAsc(Long departmentId);
+
+    java.util.Optional<TreatmentRoom> findFirstByDepartmentIdAndStatusOrderByIdAsc(
+            Long departmentId, com.clinicagent.clinic.model.RoomStatus status);
+
+    long countByDepartmentIdAndStatus(Long departmentId, com.clinicagent.clinic.model.RoomStatus status);
 }

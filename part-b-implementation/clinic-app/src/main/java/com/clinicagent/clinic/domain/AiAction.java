@@ -52,6 +52,10 @@ public class AiAction {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    /** Simulated time of the call. */
+    @Column(name = "sim_time")
+    private Instant simTime;
+
     protected AiAction() {
     }
 
@@ -63,6 +67,16 @@ public class AiAction {
         this.explanation = explanation;
         this.validationResult = validationResult;
         this.executed = executed;
+    }
+
+    public AiAction(AiScan scan, AgentTool tool, Map<String, Object> parameters, String explanation,
+                    String validationResult, boolean executed, Instant simTime) {
+        this(scan, tool, parameters, explanation, validationResult, executed);
+        this.simTime = simTime;
+    }
+
+    public Instant getSimTime() {
+        return simTime;
     }
 
     @PrePersist

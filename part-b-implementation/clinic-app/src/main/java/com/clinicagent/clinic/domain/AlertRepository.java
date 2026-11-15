@@ -8,4 +8,8 @@ public interface AlertRepository extends JpaRepository<Alert, Long> {
     List<Alert> findAllByOrderByCreatedAtDesc();
 
     List<Alert> findByActiveTrueOrderByCreatedAtDesc();
+
+    boolean existsByActiveTrueAndTypeAndDepartmentId(String type, Long departmentId);
+
+    boolean existsByActiveTrueAndTypeAndDepartmentIsNull(String type);
 }

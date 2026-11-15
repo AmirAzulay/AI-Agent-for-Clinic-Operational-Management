@@ -1,5 +1,7 @@
 package com.clinicagent.clinic.domain;
 
+import java.time.Instant;
+
 import com.clinicagent.clinic.model.DepartmentStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -34,6 +36,14 @@ public class Department {
     @Column(name = "overload_threshold", nullable = false)
     private int overloadThreshold;
 
+    /** Raised by the agent's escalate_department_status tool; shown until {@link #statusOverrideUntil}. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status_override", length = 16)
+    private DepartmentStatus statusOverride;
+
+    @Column(name = "status_override_until")
+    private Instant statusOverrideUntil;
+
     protected Department() {
     }
 
@@ -66,6 +76,34 @@ public class Department {
 
     public int getWarningThreshold() {
         return warningThreshold;
+    }
+
+    public DepartmentStatus getStatusOverride() {
+        return statusOverride;
+    }
+
+    public Instant getStatusOverrideUntil() {
+        return statusOverrideUntil;
+    }
+
+    public void escalate(DepartmentStatus status, Instant until) {
+        this.statusOverride = status;
+        this.statusOverrideUntil = until;
+        if (status.ordinal() > this.status.ordinal()) {
+            this.status = status;
+        }
+    }
+
+    /**
+     * Applies the simulation's own status, keeping an unexpired escalation if it is higher.
+     * An expired escalation is cleared.
+     */
+    public void applyComputedStatus(DepartmentStatus computed, Instant now) {
+        if (statusOverride != null && !statusOverrideUntil.isAfter(now)) {
+            statusOverride = null;
+            statusOverrideUntil = null;
+        }
+        this.status = statusOverride != null && statusOverride.ordinal() > computed.ordinal() ? statusOverride : computed;
     }
 
     public int getOverloadThreshold() {

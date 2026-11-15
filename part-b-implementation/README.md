@@ -192,6 +192,34 @@ takes 2 real hours, and the run stops by itself at its end. See PLAN.md §3.7 fo
 On Render's free plan the service sleeps after 15 minutes without visits, which also pauses a
 running simulation; keep the dashboard open while a run is going.
 
+## Agent tools (MCP)
+
+The AI agent never touches the database. It acts only through six tools that clinic-app
+exposes as an **MCP server** at `POST /mcp` (Streamable HTTP). Every call is validated against the
+live state, executed in one transaction if allowed, and logged with its reason in `ai_actions`.
+
+| MCP tool | What it does | Refused when |
+|---|---|---|
+| `get_clinic_state` | Departments, rooms, doctors, walkouts in the last 15 min, stock, alerts | never |
+| `open_room` | Opens one inactive room | department NORMAL, or no inactive room |
+| `create_alert` | Raises an alert for staff; closes itself when the department is NORMAL again | unknown department, short message, same type already open |
+| `escalate_department_status` | Raises a status for 1–120 simulated minutes | not upward, or more than one level at a time |
+| `request_medication_restock` | Orders stock, delivered 30 simulated minutes later | stock not below threshold, bad quantity, order already on its way |
+| `write_summary` | Saves the run's operational summary | shorter than 20 characters |
+
+Every action also needs a `reason` (10+ characters) and a running simulation.
+
+**Access:** `/mcp` and `/api/agent/service/**` accept only `Authorization: Bearer $AGENT_SERVICE_TOKEN`.
+Staff logins don't open them, and with no token configured they stay closed. Set the same random
+token in clinic-app and in the agent service (`openssl rand -base64 48`).
+
+**Agent runs:** the agent service opens a run with `POST /api/agent/service/runs {"skill", "trigger"}`
+and closes it with `POST /api/agent/service/runs/{id}/finish` (model, tokens, cost); tool calls in
+between are logged under it. Staff read the decisions at `GET /api/agent/runs`.
+
+To try the tools by hand, point any MCP client at `http://localhost:8080/mcp` with the header
+`Authorization: Bearer <token>`.
+
 ## Tests
 
 ```bash
@@ -213,8 +241,8 @@ request, plus the frontend build. No API keys are needed for tests.
 | Walkouts + retention | done – patient patience and walkouts (V4, `WalkoutService`), daily history retention job and `POST /api/history/retention/run` |
 | Staff accounts | done – email + password login (V5), manager-only account management, deactivation and role changes apply immediately |
 | 2 Simulation engine | done – tick-based simulated clock, arrivals, treatment, walkouts, status rules, medication use, snapshots, scenarios, start/stop/step API, history snapshots and trends, dashboard controls |
+| 3 Tools + validation | done – six validated tools (V7) exposed as an MCP server at `/mcp`, service-token access, every call logged under an agent run |
 | Storage budget | done – `supabase` profile and `DatabaseSizeGuard` keep the database under Supabase Free's 500 MB |
-| 3 Tools + validation | |
 | 4 AI agent | |
 | 5 Dashboard | in progress – login, live clinic view, staff accounts and simulation controls done; AI recommendations and history, summary view to come |
 | 6 Evaluation harness | |

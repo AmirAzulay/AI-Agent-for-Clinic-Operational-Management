@@ -8,6 +8,9 @@ import com.clinicagent.clinic.domain.Medication;
 import com.clinicagent.clinic.domain.MedicationRepository;
 import com.clinicagent.clinic.domain.Patient;
 import com.clinicagent.clinic.domain.PatientRepository;
+import com.clinicagent.clinic.domain.AlertRepository;
+import com.clinicagent.clinic.domain.RestockRequestRepository;
+import com.clinicagent.clinic.model.RestockStatus;
 import com.clinicagent.clinic.domain.SimulationRun;
 import com.clinicagent.clinic.domain.SimulationRunRepository;
 import com.clinicagent.clinic.domain.TreatmentRoom;
@@ -66,13 +69,18 @@ public class TickService {
     private final PatienceSampler patience;
     private final SnapshotWriter snapshots;
     private final DatabaseSizeGuard sizeGuard;
+    private final RestockRequestRepository restocks;
+    private final AlertRepository alerts;
     private final SimulationProperties properties;
     private final Clock clock;
 
     public TickService(SimulationRunRepository runs, DepartmentRepository departments, TreatmentRoomRepository rooms,
                        DoctorRepository doctors, PatientRepository patients, MedicationRepository medications,
                        WalkoutService walkouts, PatienceSampler patience, SnapshotWriter snapshots,
-                       DatabaseSizeGuard sizeGuard, SimulationProperties properties, Clock clock) {
+                       DatabaseSizeGuard sizeGuard, SimulationProperties properties, Clock clock,
+                       RestockRequestRepository restocks, AlertRepository alerts) {
+        this.restocks = restocks;
+        this.alerts = alerts;
         this.runs = runs;
         this.departments = departments;
         this.rooms = rooms;
@@ -117,6 +125,10 @@ public class TickService {
                 finished++;
             }
         }
+
+        // 1b. Medication restocks the agent ordered arrive.
+        restocks.findByRunIdAndStatusAndDeliverAtLessThanEqualOrderByIdAsc(run.getId(), RestockStatus.OPEN, now)
+                .forEach(r -> r.fulfil(now));
 
         // 2. Arrivals.
         int arrivals = 0;
@@ -179,9 +191,13 @@ public class TickService {
             double maxWait = waiting.stream().mapToDouble(p -> p.waitingMinutes(now)).max().orElse(0);
             boolean freeRoom = roomsByDept.getOrDefault(d.getId(), List.of()).stream()
                     .anyMatch(r -> r.getStatus() == RoomStatus.AVAILABLE);
-            d.setStatus(ClinicModel.statusFor(waiting.size(), maxWait, freeRoom,
-                    d.getWarningThreshold(), d.getOverloadThreshold(), d.getMaxQueue()));
+            d.applyComputedStatus(ClinicModel.statusFor(waiting.size(), maxWait, freeRoom,
+                    d.getWarningThreshold(), d.getOverloadThreshold(), d.getMaxQueue()), now);
         }
+        // Alerts about a department close once it is back to NORMAL.
+        alerts.findByActiveTrueOrderByCreatedAtDesc().stream()
+                .filter(a -> a.getDepartment() != null && a.getDepartment().getStatus() == com.clinicagent.clinic.model.DepartmentStatus.NORMAL)
+                .forEach(a -> a.resolve(now));
         patients.flush();
 
         // 6. History snapshot.

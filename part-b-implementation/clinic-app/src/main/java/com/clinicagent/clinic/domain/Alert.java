@@ -53,6 +53,9 @@ public class Alert {
     @Column(name = "resolved_at")
     private Instant resolvedAt;
 
+    @Column(name = "run_id")
+    private Long runId;
+
     protected Alert() {
     }
 
@@ -62,6 +65,18 @@ public class Alert {
         this.department = department;
         this.message = message;
         this.createdBy = createdBy;
+    }
+
+    /** An alert raised during a simulation run, stamped with simulated time. */
+    public Alert(Long runId, Instant simNow, String type, AlertSeverity severity, Department department, String message,
+                 Actor createdBy) {
+        this(type, severity, department, message, createdBy);
+        this.runId = runId;
+        this.createdAt = simNow;
+    }
+
+    public Long getRunId() {
+        return runId;
     }
 
     @PrePersist
