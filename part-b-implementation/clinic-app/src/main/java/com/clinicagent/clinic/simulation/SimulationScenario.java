@@ -12,7 +12,9 @@ public enum SimulationScenario {
     /** One doctor per department is off for the whole run. */
     STAFF_SHORTAGE(1.0, true, false),
     /** Every medication starts just above its threshold, so shortages come within hours. */
-    MEDICATION_SHORTAGE(1.0, false, true);
+    MEDICATION_SHORTAGE(1.0, false, true),
+    /** Everything at once: 3× arrivals, one doctor off per department, stock near threshold. The clinic collapses. */
+    DISASTER(3.0, true, true);
 
     private final double arrivalMultiplier;
     private final boolean oneDoctorOffPerDepartment;

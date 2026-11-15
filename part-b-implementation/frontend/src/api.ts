@@ -33,7 +33,7 @@ export interface StaffAccount {
   id: number; email: string; displayName: string; role: Role; active: boolean; createdAt: string
 }
 
-export type Scenario = 'NORMAL' | 'RUSH' | 'STAFF_SHORTAGE' | 'MEDICATION_SHORTAGE'
+export type Scenario = 'NORMAL' | 'RUSH' | 'STAFF_SHORTAGE' | 'MEDICATION_SHORTAGE' | 'DISASTER'
 
 export interface SimulationStatus {
   runId: number | null; running: boolean; autoTick: boolean; scenario: Scenario | null; seed: number | null
@@ -59,6 +59,7 @@ export const SCENARIO_LABELS: Record<Scenario, string> = {
   RUSH: 'Rush (1.8× arrivals)',
   STAFF_SHORTAGE: 'Staff shortage (one doctor off per department)',
   MEDICATION_SHORTAGE: 'Medication shortage (stock starts near threshold)',
+  DISASTER: 'Disaster (3× arrivals, doctors off, stock low)',
 }
 
 export const ROLE_LABELS: Record<Role, string> = {

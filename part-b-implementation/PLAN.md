@@ -208,7 +208,7 @@ The limits sit 100–200 MB below Supabase's cap, so even a burst between two ch
   wait; OVERLOADED at the overload threshold or with every room taken and a 25-minute wait; WARNING
   at the warning threshold or with every room taken and a 15-minute wait.
 - **Scenarios.** `NORMAL`, `RUSH` (1.8× arrivals), `STAFF_SHORTAGE` (one doctor off per department),
-  `MEDICATION_SHORTAGE` (stock starts just above threshold). Starting a run resets the clinic to its
+  `MEDICATION_SHORTAGE` (stock starts just above threshold), `DISASTER` (3× arrivals plus both shortages). Starting a run resets the clinic to its
   initial state first.
 - **Measured** on a normal day (seed 42): ~465 arrivals, ~15 % walkouts, departments reaching
   Warning/Overloaded/Critical around the peak, the first medication below threshold by mid-afternoon.

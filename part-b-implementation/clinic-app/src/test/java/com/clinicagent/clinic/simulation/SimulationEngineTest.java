@@ -135,6 +135,23 @@ class SimulationEngineTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void aDisasterOverwhelmsEveryDepartmentWithinTheMorning() {
+        long run = start(SimulationScenario.DISASTER, 42).getId();
+        assertThat(count("select count(*) from doctors where not available")).isEqualTo(4);
+        assertThat(count("select count(*) from medications where stock <> threshold + 5")).isZero();
+
+        engine.step(240);   // 08:00 to 12:00
+
+        assertThat(count("select count(distinct department_id) from department_snapshots where run_id = ? and status = 'CRITICAL'", run))
+                .as("departments that reached CRITICAL").isEqualTo(4);
+        assertThat(count("select count(distinct medication_id) from medication_snapshots where run_id = ? and stock < threshold", run))
+                .as("medications that fell below threshold").isPositive();
+        int arrived = count("select count(*) from patients where run_id = ?", run);
+        int left = count("select count(*) from patients where run_id = ? and status = 'LEFT'", run);
+        assertThat(left * 3).as("at least a third walk out").isGreaterThanOrEqualTo(arrived);
+    }
+
+    @Test
     void onlyOneRunAtATimeAndStoppingNeedsARunningOne() {
         start(SimulationScenario.NORMAL, 1);
         assertThatThrownBy(() -> start(SimulationScenario.NORMAL, 2))

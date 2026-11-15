@@ -186,7 +186,8 @@ clinic filling up. Starting a run resets the clinic first.
 | `GET /api/history/trends?minutes=15` | any staff | Per-department and per-medication change (the agent's trends) |
 | `GET /api/clinic/activity?minutes=60` | any staff | Patient flow: arrivals, treatment starts, treated and walkouts per department, plus the latest events |
 
-Scenarios: `NORMAL`, `RUSH`, `STAFF_SHORTAGE`, `MEDICATION_SHORTAGE`. A fixed `seed` reproduces a
+Scenarios: `NORMAL`, `RUSH`, `STAFF_SHORTAGE`, `MEDICATION_SHORTAGE`, and `DISASTER` (all of
+them at once with 3× arrivals: every department collapses within the morning). A fixed `seed` reproduces a
 run exactly. One tick is one simulated minute; at the default 5 seconds per tick a simulated day
 takes 2 real hours, and the run stops by itself at its end. See PLAN.md §3.7 for the model.
 
