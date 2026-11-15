@@ -33,7 +33,7 @@ export interface StaffAccount {
   id: number; email: string; displayName: string; role: Role; active: boolean; createdAt: string
 }
 
-export type Scenario = 'NORMAL' | 'RUSH' | 'STAFF_SHORTAGE' | 'MEDICATION_SHORTAGE'
+export type Scenario = 'NORMAL' | 'RUSH' | 'STAFF_SHORTAGE' | 'MEDICATION_SHORTAGE' | 'DISASTER'
 
 export interface SimulationStatus {
   runId: number | null; running: boolean; autoTick: boolean; scenario: Scenario | null; seed: number | null
@@ -42,11 +42,24 @@ export interface SimulationStatus {
   startedAt: string | null; stoppedAt: string | null; stopReason: 'STOPPED' | 'COMPLETED' | 'INTERRUPTED' | 'ERROR' | null
 }
 
+export type FlowEventType = 'ARRIVED' | 'TREATMENT_STARTED' | 'TREATED' | 'WALKED_OUT'
+export interface FlowCounts { arrived: number; treatmentStarted: number; treated: number; walkedOut: number }
+export interface FlowEvent {
+  at: string; simClock: string; type: FlowEventType; patientId: number; departmentId: number
+  department: string; urgency: 'LOW' | 'MEDIUM' | 'HIGH'; waitedMinutes: number | null
+}
+export interface Activity {
+  runId: number | null; simClock: string | null; minutes: number
+  departments: { departmentId: number; name: string; counts: FlowCounts }[]
+  total: FlowCounts; events: FlowEvent[]
+}
+
 export const SCENARIO_LABELS: Record<Scenario, string> = {
   NORMAL: 'Normal day',
   RUSH: 'Rush (1.8× arrivals)',
   STAFF_SHORTAGE: 'Staff shortage (one doctor off per department)',
   MEDICATION_SHORTAGE: 'Medication shortage (stock starts near threshold)',
+  DISASTER: 'Disaster (3× arrivals, doctors off, stock low)',
 }
 
 export const ROLE_LABELS: Record<Role, string> = {
@@ -91,6 +104,8 @@ export const api = {
   updateStaff: (token: string, id: number,
                 body: Partial<{ displayName: string; role: Role; active: boolean; password: string }>) =>
     request<StaffAccount>(`/api/users/${id}`, { method: 'PATCH', body: JSON.stringify(body) }, token),
+  activity: (token: string, minutes = 60, limit = 40) =>
+    request<Activity>(`/api/clinic/activity?minutes=${minutes}&limit=${limit}`, {}, token),
   simulationStatus: (token: string) => request<SimulationStatus>('/api/simulation/status', {}, token),
   startSimulation: (token: string, body: { scenario: Scenario; seed?: number; tickIntervalSeconds?: number }) =>
     request<SimulationStatus>('/api/simulation/start', { method: 'POST', body: JSON.stringify(body) }, token),
