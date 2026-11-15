@@ -55,7 +55,7 @@ export default function App() {
         </div>
       </header>
       <main className="content">
-        {tab === 'clinic' && <ClinicView token={session.token} onUnauthorized={logout} />}
+        {tab === 'clinic' && <ClinicView token={session.token} isManager={isManager} onUnauthorized={logout} />}
         {tab === 'staff' && isManager && (
           <StaffView token={session.token} currentEmail={session.email} onUnauthorized={logout} />
         )}

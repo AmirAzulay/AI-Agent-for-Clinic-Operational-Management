@@ -28,6 +28,10 @@ public class Doctor {
     @Column(nullable = false)
     private boolean available = true;
 
+    /** Availability a new simulation run starts with. */
+    @Column(name = "initially_available", nullable = false)
+    private boolean initiallyAvailable = true;
+
     @Column(name = "max_concurrent_patients", nullable = false)
     private int maxConcurrentPatients = 1;
 
@@ -54,6 +58,10 @@ public class Doctor {
 
     public boolean isAvailable() {
         return available;
+    }
+
+    public boolean isInitiallyAvailable() {
+        return initiallyAvailable;
     }
 
     public void setAvailable(boolean available) {

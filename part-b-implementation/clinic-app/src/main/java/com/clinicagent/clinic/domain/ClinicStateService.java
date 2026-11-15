@@ -11,7 +11,7 @@ import com.clinicagent.clinic.model.RoomStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Clock;
+import com.clinicagent.clinic.simulation.SimulationClock;
 import java.time.Instant;
 import java.util.EnumSet;
 import java.util.List;
@@ -32,23 +32,24 @@ public class ClinicStateService {
     private final PatientRepository patients;
     private final MedicationRepository medications;
     private final AlertRepository alerts;
-    private final Clock clock;
+    private final SimulationClock simulationClock;
 
     public ClinicStateService(DepartmentRepository departments, TreatmentRoomRepository rooms,
                               DoctorRepository doctors, PatientRepository patients,
-                              MedicationRepository medications, AlertRepository alerts, Clock clock) {
+                              MedicationRepository medications, AlertRepository alerts,
+                              SimulationClock simulationClock) {
         this.departments = departments;
         this.rooms = rooms;
         this.doctors = doctors;
         this.patients = patients;
         this.medications = medications;
         this.alerts = alerts;
-        this.clock = clock;
+        this.simulationClock = simulationClock;
     }
 
     @Transactional(readOnly = true)
     public ClinicStateResponse currentState() {
-        Instant now = clock.instant();
+        Instant now = simulationClock.now();
 
         Map<Long, List<TreatmentRoom>> roomsByDept = rooms.findAllByOrderByIdAsc().stream()
                 .collect(Collectors.groupingBy(r -> r.getDepartment().getId()));

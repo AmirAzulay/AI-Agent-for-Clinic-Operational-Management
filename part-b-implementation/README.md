@@ -170,6 +170,28 @@ account or remove their own manager role.
 
 Before any shared deployment, give the seeded accounts real passwords or deactivate them.
 
+## Simulation
+
+The clinic is empty until a simulation runs. In the dashboard, the clinic manager picks a
+scenario and a speed and clicks **Start simulation**; everyone sees the simulated clock and the
+clinic filling up. Starting a run resets the clinic first.
+
+| Call | Who | What it does |
+|---|---|---|
+| `POST /api/simulation/start` | manager | Optional body `{"scenario","seed","tickIntervalSeconds","minutesPerTick","maxTicks","autoTick"}` |
+| `POST /api/simulation/stop` | manager | Stop the running simulation |
+| `POST /api/simulation/step?ticks=N` | manager | Run N ticks immediately (for runs started with `"autoTick": false`) |
+| `GET /api/simulation/status` | any staff | Running or not, simulated day and clock, scenario, seed |
+| `GET /api/history/snapshots?lastMinutes=120` | any staff | Snapshot time series of the latest run |
+| `GET /api/history/trends?minutes=15` | any staff | Per-department and per-medication change (the agent's trends) |
+
+Scenarios: `NORMAL`, `RUSH`, `STAFF_SHORTAGE`, `MEDICATION_SHORTAGE`. A fixed `seed` reproduces a
+run exactly. One tick is one simulated minute; at the default 5 seconds per tick a simulated day
+takes 2 real hours, and the run stops by itself at its end. See PLAN.md §3.7 for the model.
+
+On Render's free plan the service sleeps after 15 minutes without visits, which also pauses a
+running simulation; keep the dashboard open while a run is going.
+
 ## Tests
 
 ```bash
@@ -190,11 +212,11 @@ request, plus the frontend build. No API keys are needed for tests.
 | Docker image | done – `clinic-app/Dockerfile`; `docker compose up` runs PostgreSQL + backend together |
 | Walkouts + retention | done – patient patience and walkouts (V4, `WalkoutService`), daily history retention job and `POST /api/history/retention/run` |
 | Staff accounts | done – email + password login (V5), manager-only account management, deactivation and role changes apply immediately |
+| 2 Simulation engine | done – tick-based simulated clock, arrivals, treatment, walkouts, status rules, medication use, snapshots, scenarios, start/stop/step API, history snapshots and trends, dashboard controls |
 | Storage budget | done – `supabase` profile and `DatabaseSizeGuard` keep the database under Supabase Free's 500 MB |
-| 2 Simulation engine | next |
 | 3 Tools + validation | |
 | 4 AI agent | |
-| 5 Dashboard | |
+| 5 Dashboard | in progress – login, live clinic view, staff accounts and simulation controls done; AI recommendations and history, summary view to come |
 | 6 Evaluation harness | |
 | 7 Hardening | |
 | 8 Optional extractions | |

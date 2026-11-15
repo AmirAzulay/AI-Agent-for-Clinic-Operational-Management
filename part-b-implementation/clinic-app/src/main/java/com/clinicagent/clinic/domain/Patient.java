@@ -51,6 +51,14 @@ public class Patient {
     @Column(name = "left_at")
     private Instant leftAt;
 
+    /** The simulation run that created this patient. */
+    @Column(name = "run_id")
+    private Long runId;
+
+    /** When the current treatment will end (simulated time). */
+    @Column(name = "treatment_due_at")
+    private Instant treatmentDueAt;
+
     @Column(name = "treatment_started_at")
     private Instant treatmentStartedAt;
 
@@ -77,6 +85,40 @@ public class Patient {
         this.urgency = urgency;
         this.arrivedAt = arrivedAt;
         this.patienceMin = patienceMin;
+    }
+
+    public Patient(Long runId, Department department, Urgency urgency, Instant arrivedAt, Integer patienceMin) {
+        this(department, urgency, arrivedAt, patienceMin);
+        this.runId = runId;
+    }
+
+    /** Starts treatment in {@code room} with {@code doctor} at {@code now}, ending at {@code dueAt}. */
+    public void startTreatment(TreatmentRoom room, Doctor doctor, Instant now, Instant dueAt) {
+        if (status != PatientStatus.WAITING) {
+            throw new IllegalStateException("Only a waiting patient can start treatment, patient " + id + " is " + status);
+        }
+        this.status = PatientStatus.IN_TREATMENT;
+        this.room = room;
+        this.doctor = doctor;
+        this.treatmentStartedAt = now;
+        this.treatmentDueAt = dueAt;
+    }
+
+    /** Ends treatment at its due time. The caller frees the room. */
+    public void finishTreatment() {
+        if (status != PatientStatus.IN_TREATMENT) {
+            throw new IllegalStateException("Only a patient in treatment can finish, patient " + id + " is " + status);
+        }
+        this.status = PatientStatus.DONE;
+        this.treatmentEndedAt = treatmentDueAt;
+    }
+
+    public Long getRunId() {
+        return runId;
+    }
+
+    public Instant getTreatmentDueAt() {
+        return treatmentDueAt;
     }
 
     /** True if the patient is still waiting and has waited longer than their patience at {@code now}. */

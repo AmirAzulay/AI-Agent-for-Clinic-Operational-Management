@@ -29,7 +29,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.time.Clock;
+import com.clinicagent.clinic.simulation.SimulationClock;
 import java.time.Instant;
 import java.util.List;
 
@@ -47,12 +47,12 @@ public class ClinicReadController {
     private final PatientRepository patients;
     private final MedicationRepository medications;
     private final AlertRepository alerts;
-    private final Clock clock;
+    private final SimulationClock simulationClock;
 
     public ClinicReadController(ClinicStateService clinicState, DepartmentRepository departments,
                                 TreatmentRoomRepository rooms, DoctorRepository doctors,
                                 PatientRepository patients, MedicationRepository medications,
-                                AlertRepository alerts, Clock clock) {
+                                AlertRepository alerts, SimulationClock simulationClock) {
         this.clinicState = clinicState;
         this.departments = departments;
         this.rooms = rooms;
@@ -60,7 +60,7 @@ public class ClinicReadController {
         this.patients = patients;
         this.medications = medications;
         this.alerts = alerts;
-        this.clock = clock;
+        this.simulationClock = simulationClock;
     }
 
     @GetMapping("/clinic/state")
@@ -96,7 +96,7 @@ public class ClinicReadController {
     @Operation(summary = "Patients, optionally filtered by department and status")
     public List<PatientDto> patients(@RequestParam(required = false) Long departmentId,
                                      @RequestParam(required = false) PatientStatus status) {
-        Instant now = clock.instant();
+        Instant now = simulationClock.now();
         Specification<Patient> spec = Specification.where(null);
         if (departmentId != null) {
             spec = spec.and((root, q, cb) -> cb.equal(root.get("department").get("id"), departmentId));

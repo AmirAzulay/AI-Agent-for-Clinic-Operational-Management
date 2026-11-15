@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { api, ApiError, type Alert, type ClinicState, type DepartmentState, type Medication } from './api'
+import { api, ApiError, type Alert, type ClinicState, type DepartmentState, type Medication, type SimulationStatus } from './api'
+import SimulationBar from './SimulationBar'
 
 const REFRESH_MS = 5000
 
@@ -11,14 +12,18 @@ const STATUS_LABEL: Record<DepartmentState['status'], string> = {
 }
 
 /** Live clinic view: polls the clinic state every few seconds. */
-export default function ClinicView({ token, onUnauthorized }: { token: string; onUnauthorized: () => void }) {
+export default function ClinicView({ token, isManager, onUnauthorized }:
+  { token: string; isManager: boolean; onUnauthorized: () => void }) {
   const [state, setState] = useState<ClinicState | null>(null)
+  const [simulation, setSimulation] = useState<SimulationStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
 
   const load = useCallback(async () => {
     try {
-      setState(await api.clinicState(token))
+      const [clinic, sim] = await Promise.all([api.clinicState(token), api.simulationStatus(token)])
+      setState(clinic)
+      setSimulation(sim)
       setUpdatedAt(new Date())
       setError(null)
     } catch (e) {
@@ -49,6 +54,8 @@ export default function ClinicView({ token, onUnauthorized }: { token: string; o
 
   return (
     <>
+      <SimulationBar token={token} status={simulation} isManager={isManager} onChange={load} onUnauthorized={onUnauthorized} />
+
       <div className="toolbar">
         <span className="muted small">
           {error ? <span className="error">{error}</span> : <>Live · updated {updatedAt?.toLocaleTimeString()}</>}
@@ -75,7 +82,7 @@ export default function ClinicView({ token, onUnauthorized }: { token: string; o
 
       {totalWaiting === 0 && totalInTreatment === 0 && (
         <p className="muted small center">
-          No patients yet. Patients arrive once the simulation runs (phase 2).
+          No patients right now.{simulation?.running ? '' : isManager ? ' Start a simulation above to bring patients in.' : ' Patients arrive once the clinic manager starts a simulation.'}
         </p>
       )}
     </>
